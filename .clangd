@@ -1,0 +1,8 @@
+CompileFlags:
+  Add:
+    - -std=c++20
+    - -Iengine/include
+    - -Ibuild/_deps/sdl3-src/include
+    - -Ibuild/_deps/flecs-src/include
+    - -Ibuild/_deps/imgui-src
+    - -DSDL_MAIN_HANDLED

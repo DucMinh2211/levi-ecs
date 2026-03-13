@@ -1,0 +1,38 @@
+# Compilation outputs
+bin/
+lib/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+*.lib
+*.a
+*.pdb
+*.ilk
+*.exp
+
+# IDE specific files
+.vscode/
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.user
+*.suo
+
+# Operating System specific files
+.DS_Store
+Thumbs.db
+
+# CMake specific
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+_deps/
+
+# Project specific
+projects/*/bin/
+projects/*/build/
+*.log
