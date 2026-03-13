@@ -13,6 +13,7 @@ build/
 *.exp
 
 # IDE specific files
+.cache/
 .vscode/
 .vs/
 *.sln
