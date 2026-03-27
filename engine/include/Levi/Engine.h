@@ -3,10 +3,13 @@
 #include <string>
 #include <flecs.h>
 #include <functional>
+#include "Components.h"
+#include "AssetManager.h"
 
-// Forward declarations để tránh include SDL3 vào header (giảm thời gian build)
+// Forward declarations to avoid including SDL3 in headers (reduces build time)
 struct SDL_Window;
 struct SDL_Renderer;
+struct SDL_Texture;
 
 namespace Levi {
     struct EngineConfig {
@@ -32,11 +35,18 @@ namespace Levi {
         // Getters
         flecs::world& getWorld() { return world_; }
         SDL_Renderer* getRenderer() { return renderer_; }
+        SDL_Texture* getViewportTexture() { return viewportTexture_; }
+        AssetManager& getAssetManager() { return assetManager_; }
 
     private:
+        void setupSystems(); // Initializes ECS Systems
+        void createViewportTexture(int width, int height);
+
         bool isRunning_;
         SDL_Window* window_;
         SDL_Renderer* renderer_;
+        SDL_Texture* viewportTexture_; // "Virtual screen" for Render to Texture
+        AssetManager assetManager_;
         flecs::world world_;
     };
 }
