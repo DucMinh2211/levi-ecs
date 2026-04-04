@@ -163,7 +163,9 @@ namespace Levi {
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport()); // Enable free window docking/dragging
+        
+        // Đặt tên cố định cho DockSpace để lưu layout chính xác vào .ini
+        ImGui::DockSpaceOverViewport(ImGui::GetID("MainDockSpace"), ImGui::GetMainViewport());
     }
 
     void EngineCore::endFrame() {

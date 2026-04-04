@@ -22,15 +22,24 @@ The foundational components are operational and stable.
     - [x] Support for actual image loading (integrated SDL3_image).
 - [x] **Editor Tooling (Phase 1):**
     - [x] **Project Explorer:** File system navigation and native path resolution.
+- [x] **Editor Tooling (Phase 2):**
+    - [x] **Scene Hierarchy:** List all entities currently in the ECS world.
+    - [x] **Inspector:** Basic UI to modify `Position2D`, `Scale2D`, etc., in real-time.
+- [x] **Editor UX Improvements:**
+    - [x] **Native File Dialogs:** Integrated `nfd-extended` for cross-platform folder/file selection.
+    - [x] **Main Menu Bar:** Toolbar for Project and Editor management.
+    - [x] **Default Docking Layout:** Godot-style layout initialized on first run.
+    - [x] **Per-Project Configuration:** Editor layout (`imgui.ini`) is saved specifically within each project's directory.
+    - [x] **Advanced File Navigation:** Double-click to open files in system apps and right-click for "Open in Explorer".
+    - [x] **Clean Scene Hierarchy:** Filtered out all internal Flecs noise (World, Query, Module, etc.).
 
 ## 🛠️ 2. Short-term (Core Features)
 High-priority features to complete the basic development workflow.
 - [ ] **Hot-reloading Mechanism (`cr.h`):**
     - [ ] Decouple game logic into a separate DLL/SO.
     - [ ] Real-time reloading of logic within the Editor without restarting.
-- [ ] **Editor Tooling (Phase 2):**
-    - [ ] **Scene Hierarchy:** List all entities currently in the ECS world.
-    - [ ] **Inspector:** Basic UI to modify `Position2D`, `Scale2D`, etc., in real-time.
+- [ ] **Refine Build Stability:** 
+    - [ ] Fix SDL_image build issues (switching to stable tags/releases).
 
 ## ⏳ 3. Mid-term (Advanced Systems)
 Essential systems required to build a functional game.

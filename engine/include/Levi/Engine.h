@@ -37,12 +37,15 @@ namespace Levi {
         SDL_Renderer* getRenderer() { return renderer_; }
         SDL_Texture* getViewportTexture() { return viewportTexture_; }
         AssetManager& getAssetManager() { return assetManager_; }
+        bool isFirstFrame() const { return firstFrame_; }
+        void clearFirstFrame() { firstFrame_ = false; }
 
     private:
         void setupSystems(); // Initializes ECS Systems
         void createViewportTexture(int width, int height);
 
         bool isRunning_;
+        bool firstFrame_ = true;
         SDL_Window* window_;
         SDL_Renderer* renderer_;
         SDL_Texture* viewportTexture_; // "Virtual screen" for Render to Texture

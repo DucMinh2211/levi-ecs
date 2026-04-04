@@ -59,8 +59,16 @@ FetchContent_Declare(
 set(FLECS_STATIC ON CACHE BOOL "" FORCE)
 set(FLECS_SHARED OFF CACHE BOOL "" FORCE)
 
+# --- Fetch Native File Dialog Extended (NFD) ---
+FetchContent_Declare(
+    nfd
+    GIT_REPOSITORY https://github.com/btzy/nativefiledialog-extended.git
+    GIT_TAG v1.2.1
+)
+set(NFD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+
 # Make content available
-FetchContent_MakeAvailable(SDL3 SDL_image imgui flecs)
+FetchContent_MakeAvailable(SDL3 SDL_image imgui flecs nfd)
 
 # --- Define ImGui Target ---
 add_library(imgui STATIC

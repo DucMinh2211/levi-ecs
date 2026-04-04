@@ -4,12 +4,17 @@
 #include <filesystem>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
 namespace Levi {
 
     class ProjectExplorer {
     public:
         ProjectExplorer();
-        ~ProjectExplorer() = default;
+        ~ProjectExplorer();
 
         // Set the root directory of the project to display
         void setProjectPath(const std::string& path);
@@ -22,6 +27,7 @@ namespace Levi {
     private:
         // Recursive function to draw the directory tree
         void drawDirectoryTree(const std::filesystem::path& dirPath);
+        void openInSystem(const std::string& path);
 
         std::string projectPath_;
         std::filesystem::path selectedPath_;
