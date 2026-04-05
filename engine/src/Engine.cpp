@@ -15,6 +15,23 @@ namespace Levi {
         shutdown();
     }
 
+    bool EngineCore::loadProject(const std::string& projectPath) {
+        std::cout << "[Levi Engine] Loading project: " << projectPath << std::endl;
+        
+        // Initialize Lua scripts for this project
+        if (!luaScriptManager_.init(projectPath, &world_)) {
+            std::cerr << "[Levi Engine] Failed to initialize Lua for project: " << projectPath << std::endl;
+            return false;
+        }
+
+        return true;
+    }
+
+    void EngineCore::unloadProject() {
+        std::cout << "[Levi Engine] Unloading project..." << std::endl;
+        luaScriptManager_.shutdown();
+    }
+
     void EngineCore::createViewportTexture(int width, int height) {
         if (viewportTexture_) {
             SDL_DestroyTexture(viewportTexture_);
@@ -138,6 +155,12 @@ namespace Levi {
             SDL_SetRenderDrawColor(renderer_, 20, 20, 20, 255); // Darker background color for the game
             SDL_RenderClear(renderer_);
             
+            // Check for Lua script changes (hot reload)
+            luaScriptManager_.checkForChanges();
+            
+            // Call Lua onUpdate if exists
+            luaScriptManager_.callFunction("onUpdate", world_.delta_time());
+            
             world_.progress(); // Run ECS Systems (Render System will draw into this Texture)
             
             SDL_SetRenderTarget(renderer_, nullptr); // Switch back to main screen
@@ -175,6 +198,9 @@ namespace Levi {
 
     void EngineCore::shutdown() {
         if (isRunning_) {
+            // Unload any active project
+            unloadProject();
+
             ImGui_ImplSDLRenderer3_Shutdown();
             ImGui_ImplSDL3_Shutdown();
             ImGui::DestroyContext();

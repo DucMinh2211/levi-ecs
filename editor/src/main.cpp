@@ -44,13 +44,12 @@ int main(int argc, char* argv[]) {
 
         // Khởi tạo lần đầu với project mặc định
         updateIniPath(projectExplorer.getProjectPath());
+        
+        // Load Lua scripts for project
+        engine.loadProject(projectExplorer.getProjectPath());
 
-        // --- Test: Create a simple entity ---
-        std::string playerImagePath = projectExplorer.getCompletePath("assets/player.jpg");
-        // ... (giữ nguyên phần tạo entity Player)
-        auto player = engine.getWorld().entity("Player")
-            .set<Levi::Position2D>({ 100.0f, 100.0f })
-            .set<Levi::Sprite2D>({ playerImagePath, { 300.0f, 300.0f } });
+        // Lua scripts will create entities via onInit()
+        // No need to manually create test entities here anymore
 
         static bool resetLayout = false;
 
@@ -101,6 +100,10 @@ int main(int argc, char* argv[]) {
                         if (result == NFD_OKAY) {
                             projectExplorer.setProjectPath(outPath);
                             updateIniPath(outPath); // Cập nhật file cấu hình cho project mới
+                            
+                            // Reload Lua scripts for new project
+                            engine.loadProject(outPath);
+                            
                             NFD_FreePath(outPath);
                         }
                     }

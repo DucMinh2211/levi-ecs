@@ -5,6 +5,7 @@
 #include <functional>
 #include "Components.h"
 #include "AssetManager.h"
+#include "LuaScriptManager.h"
 
 // Forward declarations to avoid including SDL3 in headers (reduces build time)
 struct SDL_Window;
@@ -32,11 +33,16 @@ namespace Levi {
         void beginFrame();
         void endFrame();
 
+        // Project management
+        bool loadProject(const std::string& projectPath);
+        void unloadProject();
+
         // Getters
         flecs::world& getWorld() { return world_; }
         SDL_Renderer* getRenderer() { return renderer_; }
         SDL_Texture* getViewportTexture() { return viewportTexture_; }
         AssetManager& getAssetManager() { return assetManager_; }
+        LuaScriptManager& getLuaScriptManager() { return luaScriptManager_; }
         bool isFirstFrame() const { return firstFrame_; }
         void clearFirstFrame() { firstFrame_ = false; }
 
@@ -50,6 +56,7 @@ namespace Levi {
         SDL_Renderer* renderer_;
         SDL_Texture* viewportTexture_; // "Virtual screen" for Render to Texture
         AssetManager assetManager_;
+        LuaScriptManager luaScriptManager_;
         flecs::world world_;
     };
 }

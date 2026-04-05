@@ -7,7 +7,7 @@
 ## 🚀 Key Features
 *   **Engine Core:** Powered by **C++20** and **SDL3**.
 *   **Architecture:** Data-oriented design using **Flecs (v4)** ECS.
-*   **Hot-reloading:** Change game logic on the fly without restarting (via `cr.h`).
+*   **Hot-reloading:** Change game logic on the fly using **Lua scripting** (via **sol2**).
 *   **2D Rendering:** Hardware-accelerated sprites, animations, and lighting.
 *   **Studio Editor:** Integrated GUI built with **Dear ImGui (Docking)**.
 *   **Cross-platform:** Support for Windows and Linux via **CMake**.
@@ -61,9 +61,9 @@
 ---
 
 ## 📂 Project Structure
-*   **`engine/`**: Core engine logic (ECS, Rendering, Math, Physics).
+*   **`engine/`**: Core engine logic (ECS, Rendering, Math, Physics, Lua integration).
 *   **`editor/`**: Studio GUI and developer tools.
-*   **`projects/`**: User game projects (Hot-reloadable modules).
+*   **`projects/`**: User game projects (Lua scripts with hot-reloading support).
 *   **`bin/`**: Compiled executables and binaries.
 *   **`lib/`**: Compiled static libraries.
 

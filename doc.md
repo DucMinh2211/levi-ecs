@@ -7,7 +7,7 @@
     * **SDL3:** Xử lý Windowing, Input và 2D Rendering hiện đại.
     * **Dear ImGui (Docking):** Xây dựng giao diện Editor chuyên nghiệp.
     * **Flecs (v4):** Hệ thống ECS mạnh mẽ và linh hoạt.
-    * **cr.h:** Cơ chế Hot-reloading cho C++.
+    * **Lua + sol2:** Scripting và Hot-reloading cho game logic.
 
 ## 2. Tính năng chính (2D Focus)
 ...
@@ -39,7 +39,7 @@ Dự án được phân tách rõ ràng giữa **Core Engine** và **Editor Appl
 | :--- | :--- | :--- | :--- |
 | **`engine/`** | **Core Library** | Chứa logic vận hành game: Rendering (SDL3), ECS (Flecs), Vật lý, Toán học. | `LeviEngine.lib` (Static Library) |
 | **`editor/`** | **Studio App** | Chứa giao diện điều khiển (Dear ImGui), Scene Hierarchy, Inspector, quản lý Project. | `LeviEditor.exe` (Executable) |
-| **`projects/`** | **User Game** | Chứa code logic và tài nguyên của người dùng (được nạp vào qua Hot-reloading). | `game_logic.dll` (Shared Library) |
+| **`projects/`** | **User Game** | Chứa Lua scripts và tài nguyên của người dùng (được nạp vào qua Hot-reloading). | Lua scripts (`.lua`) |
 
 ### Tại sao cần tách Engine và Editor?
 1. **Tính độc lập:** Code giao diện (UI) của Editor không làm ảnh hưởng đến hiệu năng cốt lõi của Engine.
@@ -54,7 +54,7 @@ Sử dụng script `scripts/build.ps1` để biên dịch toàn bộ dự án.
 ```powershell
 .\scripts\build.ps1
 ```
-### Quy trình Hot-reloading
-1. Chỉnh sửa code trong `projects/demo-project/src/`.
-2. Biên dịch code logic thành `game_logic.dll`.
-3. Engine sẽ tự động phát hiện thay đổi và nạp lại logic mới mà không mất dữ liệu ECS.
+### Quy trình Hot-reloading (Lua)
+1. Chỉnh sửa script Lua trong `projects/demo-project/scripts/`.
+2. Engine sẽ tự động phát hiện thay đổi và nạp lại script mới ngay lập tức.
+3. Logic game được viết bằng Lua, giao tiếp với ECS qua sol2 bindings.

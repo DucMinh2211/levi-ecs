@@ -1,0 +1,19 @@
+{
+    "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+    "runtime.version": "Lua 5.4",
+    "runtime.path": [
+        "?.lua",
+        "?/init.lua"
+    ],
+    "diagnostics.globals": [
+        "ECS",
+        "entities"
+    ],
+    "workspace.library": [
+        "scripts/levi-api"
+    ],
+    "workspace.checkThirdParty": false,
+    "completion.callSnippet": "Both",
+    "hint.enable": true,
+    "hint.setType": true
+}
