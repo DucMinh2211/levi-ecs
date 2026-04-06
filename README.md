@@ -2,6 +2,9 @@
 
 **Levi** is a high-performance 2D Game Engine focused on **Entity Component System (ECS)** architecture and **C++ Hot-reloading**. Built for modern game development workflows with a minimal feedback loop.
 
+**Hot Reloading with Lua**
+
+![Hot Reloading with Lua Demo](demo/levi-demo-gif.gif)
 ---
 
 ## 🚀 Key Features
@@ -11,6 +14,11 @@
 *   **2D Rendering:** Hardware-accelerated sprites, animations, and lighting.
 *   **Studio Editor:** Integrated GUI built with **Dear ImGui (Docking)**.
 *   **Cross-platform:** Support for Windows and Linux via **CMake**.
+
+---
+## Demo
+
+https://github.com/user-attachments/assets/11788033-533e-47e3-a2be-a44198be4eff
 
 ---
 
