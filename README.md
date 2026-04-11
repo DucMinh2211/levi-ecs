@@ -25,168 +25,186 @@ https://github.com/user-attachments/assets/11788033-533e-47e3-a2be-a44198be4eff
 *   **Engine Core:** Powered by **C++20** and **SDL3**.
 *   **Architecture:** Data-oriented design using **Flecs (v4)** ECS.
 *   **Hot-reloading:** Change game logic on the fly using **Lua scripting** (via **sol2**).
+*   **Asset Management:** Centralized management for textures and resources.
 *   **2D Rendering:** Hardware-accelerated sprites, animations, and lighting.
 *   **Studio Editor:** Integrated GUI built with **Dear ImGui (Docking)**.
-*   **Cross-platform:** Support for Windows and Linux via **CMake**.
+*   **Cross-platform:** Support for **Windows**, **Linux**, and **macOS** via CMake.
 
 ---
 
 ## 🏗 Architecture
+
+The engine is designed with a clear separation between the C++ Core and the hot-reloadable Lua Game Layer.
+
 ```mermaid
-graph TD
+graph TB
+    subgraph "User Project"
+        Scripts[".lua scripts"]
+        Assets["Textures/Assets"]
+    end
+
     subgraph "Development Tools"
-        Editor[Dear ImGui Editor]
-        Watcher[File System Watcher]
+        Watcher["File Watcher"]
+        Editor["ImGui Editor"]
+        Hierarchy["Scene Hierarchy"]
+        Inspector["Inspector"]
     end
 
-    subgraph "Levi Core (C++)"
-        Renderer[SDL3 Hardware Renderer]
-        ECS[Flecs v4 Archetype Engine]
-        LuaBridge[Sol2 Scripting Bridge]
+    subgraph "Levi Engine (C++20)"
+        Core["Engine Core"]
+        LuaMgr["Lua Manager (sol2)"]
+        AssetMgr["Asset Manager"]
+        ECS["Flecs ECS (v4)"]
+        Renderer["SDL3 Renderer"]
     end
 
-    subgraph "Game Layer (Hot-Reloadable)"
-        Logic[Lua Systems]
-        State[Component Data]
-    end
-
-    Watcher -->|Trigger| LuaBridge
-    LuaBridge -->|Infect Logic| ECS
-    Logic -->|Modify| State
-    State -->|Batch Draw| Renderer
-    Editor -->|Inspect/Debug| State
+    Watcher -.->|"Trigger Reload"| LuaMgr
+    Scripts -->|Load| LuaMgr
+    Assets -->|Load| AssetMgr
+    
+    LuaMgr -->|"Update Systems"| ECS
+    AssetMgr -->|"Provide Textures"| Renderer
+    
+    ECS -->|"Entity Data"| Renderer
+    
+    Editor --> Hierarchy
+    Editor --> Inspector
+    Hierarchy -->|"Select"| ECS
+    Inspector -->|"Modify"| ECS
+    
+    Renderer -->|"Render Viewport"| Editor
 ```
+
+### 🔄 Hot-Reloading Workflow
+
+Levi uses a **non-destructive reloading** strategy. When a script is modified, the engine re-executes the Lua code while keeping the existing ECS world (entities and their components) intact.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Watcher as File System Watcher
+    participant Manager as Lua Script Manager
+    participant State as sol::state (Lua VM)
+    participant ECS as Flecs World
+
+    User->>User: Modify movement.lua (Change speed)
+    User->>Watcher: Save File
+    Watcher->>Manager: Trigger "onFileChanged"
+    
+    rect rgb(40, 40, 40)
+        Note over Manager, State: Hot-Reload Cycle
+        Manager->>State: Call old "onShutdown()"
+        Manager->>State: Reload script file & Re-execute
+        Manager->>State: Call new "onInit()"
+    end
+
+    Manager->>ECS: Persistent Entity Data Remains!
+    
+    loop Every Frame
+        Manager->>State: Call "onUpdate(deltaTime)"
+        State->>ECS: Update Component Data (New Speed)
+    end
+```
+
+---
 
 ## 📜 Scripting Examples
 
-This is how you declare a component/system in `lua`. Based on Hot-reloading, you can changes movement speed or logic and see the results intermediate on Game Viewport.
+This is how you declare a component/system in `lua`. Thanks to hot-reloading, you can change movement speed or logic and see the results immediately in the Game Viewport.
+
 ```lua
 -- Demo Lua Script for Levi Engine
--- This script demonstrates ECS API usage and hot-reloading
-
 print("=== Levi Lua Script Loaded ===")
 
--- Store entity IDs globally so we can modify them in onUpdate
 entities = {}
 
--- Called once when script loads
 function onInit()
-    print("[Lua] onInit() - Creating entities...")
-    -- local tmp = ECS.createEntity();
-    -- ECS.addPosition(tmp, 100, 100)
-    -- ECS.addSprite(tmp, "assets/player.jpg", 100, 100)
-    
-    -- Create a player entity with name
     local player = ECS.createEntity("Player")
     ECS.addPosition(player, 400, 300)
     ECS.addSprite(player, "assets/player.jpg", 100, 100)
     entities.player = player
-    
-    print("[Lua] Created player entity: " .. player)
-    
-    -- Create some test entities with names
-    for i = 1, 3 do
-        local entity = ECS.createEntity("Enemy_" .. i)
-        ECS.addPosition(entity, 100 + i * 150, 200)
-        ECS.addSprite(entity, "assets/player.jpg", 80, 80)
-        table.insert(entities, entity)
-    end
-    
-    print("[Lua] onInit() complete! Created " .. (#entities + 1) .. " entities")
 end
 
--- Called every frame
 local time = 0
 function onUpdate(deltaTime)
     time = time + deltaTime
     
-    -- Move player in a circle (Hot-reload test: change speed here!)
     if entities.player then
         local radius = 100
-        local speed = 3.0  -- Try changing this value and saving!
-        local centerX = 400
-        local centerY = 300
-        
-        local x = centerX + math.cos(time * speed) * radius
-        local y = centerY + math.sin(time * speed) * radius
-        
+        local speed = 3.0  -- Change this and save to see hot-reload!
+        local x = 400 + math.cos(time * speed) * radius
+        local y = 300 + math.sin(time * speed) * radius
         ECS.setPosition(entities.player, x, y)
     end
-    
-    -- Move other entities up and down
-    for i, entityId in ipairs(entities) do
-        local pos = ECS.getPosition(entityId)
-        if pos then
-            local offset = math.sin(time * 3 + i) * 50
-            ECS.setPosition(entityId, pos.x, 200 + offset)
-        end
-    end
 end
-
--- Called when script is about to be reloaded or engine shuts down
-function onShutdown()
-    print("[Lua] onShutdown() - Cleaning up...")
-    -- Note: You don't need to delete entities here,
-    -- they persist across script reloads!
-end
-
-print("[Lua] Script functions registered")
 ```
 
-**Example Projects**: [Demo](examples/demo-projects)
+**Full Example Project**: [demo-project](projects/demo-project)
+
+---
 
 ## 🛠️ Build Instructions
 
 ### Prerequisites
 *   **C++20 Compiler:** (MSVC 2022, GCC 11+, or Clang 13+)
-*   **CMake:** version 3.20 or higher.
-*   **Git:** To fetch third-party dependencies.
+*   **CMake:** version 3.24 or higher.
+*   **Ninja:** (Optional, but recommended for faster builds)
 
-### 🪟 Windows (Visual Studio)
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/your-username/levi.git
-    cd levi
-    ```
-2.  **Using helper script:**
-    ```powershell
-    .\scripts\build.ps1
-    ```
-3.  **Using CMake manually:**
-    ```bash
-    mkdir build
-    cmake -B build -S .
-    cmake --build build --config Debug
-    ```
-4.  Run the editor from `bin/LeviEditor.exe`.
+### 🪟 Windows (Visual Studio / Ninja)
+```powershell
+# Using the helper script
+.\scripts\build.ps1
+```
 
 ### 🐧 Linux (Ubuntu/Debian)
-1.  Install dependencies (SDL3 requirements):
-    ```bash
-    sudo apt-get update
-    sudo apt-get install build-essential git cmake libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libwayland-dev libxkbcommon-dev
-    ```
-2.  Clone and Build:
-    ```bash
-    git clone https://github.com/your-username/levi.git
-    cd levi
-    mkdir build
-    cmake -B build -S .
-    cmake --build build --config Debug
-    ```
-3.  Run the editor:
-    ```bash
-    ./bin/LeviEditor
-    ```
+You can use the helper script to install dependencies automatically, or install them manually:
+
+**Option A: Using the helper script**
+```bash
+chmod +x ./scripts/build.sh
+./scripts/build.sh --deps  # Installs the packages listed below
+./scripts/build.sh         # Builds the engine
+```
+
+**Option B: Manual installation**
+The following packages are required for SDL3 and the engine:
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential git cmake libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libwayland-dev libxkbcommon-dev
+./scripts/build.sh  # Then build the engine as usual
+```
+
+### 🍎 macOS
+```bash
+# 1. Install build tools (requires Homebrew)
+chmod +x ./scripts/build.sh
+./scripts/build.sh --deps
+
+# 2. Build the engine
+./scripts/build.sh
+```
+
+### 🛠️ Manual CMake Build (All Platforms)
+If you prefer not to use the helper scripts:
+
+1. **Configure:**
+   ```bash
+   cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+   ```
+2. **Build:**
+   ```bash
+   cmake --build build --config Debug
+   ```
+   *Note: On Linux, ensure you have installed the system dependencies listed in the Linux section first.*
 
 ---
 
 ## 📂 Project Structure
-*   **`engine/`**: Core engine logic (ECS, Rendering, Math, Physics, Lua integration).
-*   **`editor/`**: Studio GUI and developer tools.
-*   **`projects/`**: User game projects (Lua scripts with hot-reloading support).
+*   **`engine/`**: Core engine logic (ECS, Rendering, Assets, Lua integration).
+*   **`editor/`**: Studio GUI and developer tools (Inspector, Hierarchy).
+*   **`projects/`**: User game projects and assets.
+*   **`third_party/`**: External libraries (SDL3, Flecs, Lua, sol2, ImGui).
 *   **`bin/`**: Compiled executables and binaries.
-*   **`lib/`**: Compiled static libraries.
 
 ---
 
