@@ -55,8 +55,11 @@ namespace Levi {
         SDL_Window* window_;
         SDL_Renderer* renderer_;
         SDL_Texture* viewportTexture_; // "Virtual screen" for Render to Texture
+        
+        // Members are destroyed in reverse order of declaration.
+        // We want world_ to be destroyed LAST.
+        flecs::world world_;
         AssetManager assetManager_;
         LuaScriptManager luaScriptManager_;
-        flecs::world world_;
     };
 }

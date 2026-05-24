@@ -46,47 +46,103 @@ namespace Levi {
     void LuaScriptManager::bindECS(flecs::world* world) {
         if (!world) return;
         
+        // Register enums
+        lua_.new_enum("PivotType", 
+            "Percent", PivotType::Percent,
+            "Pixel", PivotType::Pixel
+        );
+
         // Register types for Lua
         lua_.new_usertype<Position2D>("Position2D", "x", &Position2D::x, "y", &Position2D::y);
         lua_.new_usertype<Scale2D>("Scale2D", "x", &Scale2D::x, "y", &Scale2D::y);
+        lua_.new_usertype<Rotation2D>("Rotation2D", 
+            "angle", &Rotation2D::angle,
+            "pivot", &Rotation2D::pivot,
+            "pivotType", &Rotation2D::pivotType
+        );
         lua_.new_usertype<Vector2>("Vector2", "x", &Vector2::x, "y", &Vector2::y);
         lua_.new_usertype<Sprite2D>("Sprite2D", "texturePath", &Sprite2D::texturePath, "size", &Sprite2D::size);
 
         auto ecs = lua_.create_table();
 
-        // --- CORE API (Must match main.lua) ---
+        // --- CORE API ---
         
         ecs["createEntity"] = [world](sol::optional<std::string> name) -> uint64_t {
             if (name && !name->empty()) return world->entity(name->c_str()).id();
             return world->entity().id();
         };
 
+        ecs["deleteEntity"] = [world](uint64_t id) {
+            auto e = world->entity(id);
+            if (e.is_alive()) e.destruct();
+        };
+
+        // --- Component Management ---
+
+        // Position
         ecs["addPosition"] = [world](uint64_t id, float x, float y) {
             world->entity(id).set<Position2D>({x, y});
         };
-
         ecs["setPosition"] = [world](uint64_t id, float x, float y) {
             world->entity(id).set<Position2D>({x, y});
         };
-
         ecs["getPosition"] = [world](uint64_t id) -> sol::optional<Position2D> {
             auto e = world->entity(id);
             if (e.is_alive() && e.has<Position2D>()) return *e.get<Position2D>();
             return sol::nullopt;
         };
 
+        // Scale
+        ecs["addScale"] = [world](uint64_t id, float x, float y) {
+            world->entity(id).set<Scale2D>({x, y});
+        };
+        ecs["setScale"] = [world](uint64_t id, float x, float y) {
+            world->entity(id).set<Scale2D>({x, y});
+        };
+        ecs["getScale"] = [world](uint64_t id) -> sol::optional<Scale2D> {
+            auto e = world->entity(id);
+            if (e.is_alive() && e.has<Scale2D>()) return *e.get<Scale2D>();
+            return sol::nullopt;
+        };
+
+        // Rotation
+        ecs["addRotation"] = [world](uint64_t id, float angle) {
+            world->entity(id).set<Rotation2D>({angle});
+        };
+        ecs["setRotation"] = [world](uint64_t id, float angle) {
+            auto e = world->entity(id);
+            if (e.is_alive()) {
+                if (auto rot = e.get_mut<Rotation2D>()) {
+                    rot->angle = angle;
+                } else {
+                    e.set<Rotation2D>({angle});
+                }
+            }
+        };
+        ecs["setRotationPivot"] = [world](uint64_t id, float x, float y, PivotType type) {
+            auto e = world->entity(id);
+            if (e.is_alive()) {
+                if (auto rot = e.get_mut<Rotation2D>()) {
+                    rot->pivot = {x, y};
+                    rot->pivotType = type;
+                }
+            }
+        };
+        ecs["getRotation"] = [world](uint64_t id) -> sol::optional<Rotation2D> {
+            auto e = world->entity(id);
+            if (e.is_alive() && e.has<Rotation2D>()) return *e.get<Rotation2D>();
+            return sol::nullopt;
+        };
+
+        // Sprite
         ecs["addSprite"] = [this, world](uint64_t id, const std::string& path, float w, float h) {
             std::string fullPath = (std::filesystem::path(this->projectPath_) / path).string();
             world->entity(id).set<Sprite2D>({fullPath, {w, h}});
         };
-
-        ecs["addScale"] = [world](uint64_t id, float x, float y) {
-            world->entity(id).set<Scale2D>({x, y});
-        };
-
-        ecs["deleteEntity"] = [world](uint64_t id) {
+        ecs["getSprite"] = [world](uint64_t id) -> sol::optional<Sprite2D> {
             auto e = world->entity(id);
-            if (e.is_alive()) e.destruct();
+            if (e.is_alive() && e.has<Sprite2D>()) return *e.get<Sprite2D>();
+            return sol::nullopt;
         };
 
         lua_["ECS"] = ecs;

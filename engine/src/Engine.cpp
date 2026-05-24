@@ -108,27 +108,59 @@ namespace Levi {
 
         // Create 2D Render System
         world_.system<const Position2D, const Sprite2D>()
-            .kind(flecs::OnUpdate) // Runs every time world_.progress() is called
+            .with<Scale2D>().optional()
+            .with<Rotation2D>().optional()
+            .kind(flecs::OnUpdate)
             .each([](flecs::entity e, const Position2D& pos, const Sprite2D& sprite) {
-                // Access world from entity
                 auto world = e.world();
                 auto rRef = world.get<RendererRef>();
                 auto amRef = world.get<AssetManagerRef>();
 
                 if (!rRef || !rRef->ptr || !amRef || !amRef->ptr) return;
 
-                // Try to load texture
                 SDL_Texture* tex = amRef->ptr->loadTexture(sprite.texturePath);
+                
+                // 1. Calculate final size with Scale
+                float finalWidth = sprite.size.x;
+                float finalHeight = sprite.size.y;
+                if (auto scale = e.get<Scale2D>()) {
+                    finalWidth *= scale->x;
+                    finalHeight *= scale->y;
+                }
+
+                // 2. Handle Rotation and Pivot
+                float angle = 0.0f;
+                SDL_FPoint center = { finalWidth / 2.0f, finalHeight / 2.0f }; // Default center
+
+                if (auto rot = e.get<Rotation2D>()) {
+                    angle = rot->angle;
+                    if (rot->pivotType == PivotType::Percent) {
+                        center.x = rot->pivot.x * finalWidth;
+                        center.y = rot->pivot.y * finalHeight;
+                    } else {
+                        center.x = rot->pivot.x;
+                        center.y = rot->pivot.y;
+                    }
+                }
+
+                // 3. Define destination rect (Position is the Pivot point in world space)
+                SDL_FRect dest = { 
+                    pos.x - center.x, 
+                    pos.y - center.y, 
+                    finalWidth, 
+                    finalHeight 
+                };
 
                 if (tex) {
-                    // Draw actual texture
-                    SDL_FRect dest = { pos.x, pos.y, sprite.size.x, sprite.size.y };
-                    SDL_RenderTexture(rRef->ptr, tex, nullptr, &dest);
+                    SDL_RenderTextureRotated(rRef->ptr, tex, nullptr, &dest, (double)angle, &center, SDL_FLIP_NONE);
                 } else {
-                    // Fallback: Draw placeholder square (Yellow)
-                    SDL_FRect rect = { pos.x, pos.y, sprite.size.x, sprite.size.y };
+                    // Fallback: Draw placeholder square
                     SDL_SetRenderDrawColor(rRef->ptr, 255, 255, 0, 255);
-                    SDL_RenderFillRect(rRef->ptr, &rect);
+                    SDL_RenderFillRect(rRef->ptr, &dest);
+                    
+                    // Optional: draw pivot point for debugging if needed
+                    // SDL_SetRenderDrawColor(rRef->ptr, 255, 0, 0, 255);
+                    // SDL_RenderPoint(rRef->ptr, pos.x, pos.y);
                 }
             });
 

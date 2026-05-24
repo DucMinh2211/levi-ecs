@@ -48,6 +48,7 @@ function onUpdate(deltaTime)
         local y = centerY + math.sin(time * speed) * radius
         
         ECS.setPosition(entities.player, x, y)
+        ECS.setRotation(entities.player, 45)
     end
     
     -- Move other entities up and down

@@ -18,9 +18,17 @@ namespace Levi {
         using Vector2::Vector2;
     };
 
-    // Rotation angle of a 2D entity (unit: degrees)
+    // Pivot point type
+    enum class PivotType {
+        Percent, // 0.0 to 1.0 (0.5 is center)
+        Pixel    // Absolute pixel offset
+    };
+
+    // Rotation angle and pivot of a 2D entity (unit: degrees)
     struct Rotation2D {
         float angle = 0.0f;
+        Vector2 pivot = { 0.5f, 0.5f };
+        PivotType pivotType = PivotType::Percent;
     };
 
     // Component for displaying 2D images

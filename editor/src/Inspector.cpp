@@ -40,7 +40,31 @@ namespace Levi {
             }
         }
 
-        // 3. Sprite2D Component
+        // 3. Rotation2D Component
+        if (entity.has<Rotation2D>()) {
+            if (ImGui::CollapsingHeader("Rotation 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
+                auto* rot = entity.get_mut<Rotation2D>();
+                ImGui::DragFloat("Angle", &rot->angle, 1.0f, 0.0f, 360.0f);
+                
+                ImGui::Separator();
+                ImGui::Text("Pivot");
+                
+                // Pivot Type Combo
+                const char* pivotTypes[] = { "Percent", "Pixel" };
+                int currentType = (int)rot->pivotType;
+                if (ImGui::Combo("Pivot Type", &currentType, pivotTypes, IM_ARRAYSIZE(pivotTypes))) {
+                    rot->pivotType = (PivotType)currentType;
+                }
+
+                if (rot->pivotType == PivotType::Percent) {
+                    ImGui::DragFloat2("Pivot (0-1)", &rot->pivot.x, 0.01f, 0.0f, 1.0f);
+                } else {
+                    ImGui::DragFloat2("Pivot (Px)", &rot->pivot.x, 1.0f);
+                }
+            }
+        }
+
+        // 4. Sprite2D Component
         if (entity.has<Sprite2D>()) {
             if (ImGui::CollapsingHeader("Sprite 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
                 auto* sprite = entity.get_mut<Sprite2D>();
@@ -68,6 +92,9 @@ namespace Levi {
             }
             if (!entity.has<Scale2D>() && ImGui::MenuItem("Scale 2D")) {
                 entity.add<Scale2D>();
+            }
+            if (!entity.has<Rotation2D>() && ImGui::MenuItem("Rotation 2D")) {
+                entity.add<Rotation2D>();
             }
             if (!entity.has<Sprite2D>() && ImGui::MenuItem("Sprite 2D")) {
                 entity.add<Sprite2D>();
