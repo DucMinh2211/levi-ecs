@@ -48,6 +48,7 @@ namespace Levi {
 
     private:
         void setupSystems(); // Initializes ECS Systems
+        void executeLuaSystems(); // Executes Lua-defined systems
         void createViewportTexture(int width, int height);
 
         bool isRunning_;

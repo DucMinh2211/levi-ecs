@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <iostream>
+#include "ScriptComponent.h"
 
 namespace Levi {
     

@@ -1,6 +1,7 @@
 #include "Levi/LuaScriptManager.h"
 #include "Levi/Components.h"
 #include "Levi/Math.h"
+#include "Levi/SystemManager.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -143,6 +144,85 @@ namespace Levi {
             auto e = world->entity(id);
             if (e.is_alive() && e.has<Sprite2D>()) return *e.get<Sprite2D>();
             return sol::nullopt;
+        };
+
+        // --- Dynamic Script Components (ECS Abstraction Phase 1) ---
+
+        ecs["defineComponent"] = [](std::string name, sol::table defaultValues) {
+            ScriptComponentSchema schema;
+            schema.name = name;
+            
+            for (auto& pair : defaultValues) {
+                std::string fieldName = pair.first.as<std::string>();
+                ScriptFieldType type = ScriptFieldType::Unknown;
+                
+                sol::object val = pair.second;
+                if (val.is<float>() || val.is<double>()) type = ScriptFieldType::Float;
+                else if (val.is<int>()) type = ScriptFieldType::Int;
+                else if (val.is<std::string>()) type = ScriptFieldType::String;
+                else if (val.is<bool>()) type = ScriptFieldType::Bool;
+                
+                schema.fields.push_back({fieldName, type});
+            }
+            
+            ScriptComponentRegistry::getInstance().registerSchema(schema);
+            std::cout << "[Lua] Defined Component: " << name << " with " << schema.fields.size() << " fields." << std::endl;
+        };
+
+        ecs["addComponent"] = [world](uint64_t id, std::string schemaName) {
+            auto e = world->entity(id);
+            if (!e.is_alive()) return;
+            
+            const auto* schema = ScriptComponentRegistry::getInstance().getSchema(schemaName);
+            if (!schema) {
+                std::cerr << "[Lua] Error: Component schema not found: " << schemaName << std::endl;
+                return;
+            }
+            
+            ScriptComponent comp;
+            comp.schemaName = schemaName;
+            
+            // Attach as a pair (ScriptComponent, schemaName) to allow multiple script components on one entity
+            e.set<ScriptComponent>(world->entity(schemaName.c_str()), comp);
+        };
+
+        ecs["setComponentValue"] = [world](uint64_t id, std::string schemaName, std::string fieldName, sol::object value) {
+            auto e = world->entity(id);
+            if (!e.is_alive()) return;
+
+            auto* comp = e.get_mut<ScriptComponent>(world->entity(schemaName.c_str()));
+            if (!comp) return;
+
+            if (value.is<float>() || value.is<double>()) comp->values[fieldName] = (float)value.as<float>();
+            else if (value.is<int>()) comp->values[fieldName] = value.as<int>();
+            else if (value.is<std::string>()) comp->values[fieldName] = value.as<std::string>();
+            else if (value.is<bool>()) comp->values[fieldName] = value.as<bool>();
+        };
+
+        ecs["getComponentValue"] = [world](uint64_t id, std::string schemaName, std::string fieldName, sol::this_state L) -> sol::object {
+            auto e = world->entity(id);
+            if (!e.is_alive()) return sol::nil;
+
+            const auto* comp = e.get<ScriptComponent>(world->entity(schemaName.c_str()));
+            if (!comp) return sol::nil;
+
+            auto it = comp->values.find(fieldName);
+            if (it == comp->values.end()) return sol::nil;
+
+            return std::visit([L](auto&& arg) -> sol::object {
+                return sol::make_object(L, arg);
+            }, it->second);
+        };
+
+        // --- System Management (ECS Abstraction Phase 2) ---
+
+        ecs["registerSystem"] = [](std::string name, sol::table query, sol::protected_function callback) {
+            std::vector<std::string> queryComponents;
+            for (auto& pair : query) {
+                queryComponents.push_back(pair.second.as<std::string>());
+            }
+            SystemManager::getInstance().registerSystem(name, queryComponents, callback);
+            std::cout << "[Lua] Registered System: " << name << std::endl;
         };
 
         lua_["ECS"] = ecs;

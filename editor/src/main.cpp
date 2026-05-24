@@ -9,6 +9,7 @@
 #include "ProjectExplorer.h"
 #include "SceneHierarchy.h"
 #include "Inspector.h"
+#include "SystemPanel.h"
 
 int main(int argc, char* argv[]) {
     std::cout << "--- Levi Studio Editor ---" << std::endl;
@@ -23,6 +24,7 @@ int main(int argc, char* argv[]) {
         Levi::ProjectExplorer projectExplorer;
         Levi::SceneHierarchy sceneHierarchy;
         Levi::Inspector inspector;
+        Levi::SystemPanel systemPanel;
 
         // --- Logic quản lý đường dẫn imgui.ini ---
         static char iniPathBuf[1024];
@@ -70,17 +72,22 @@ int main(int argc, char* argv[]) {
                 // 1. Chia bên trái (15% cho Hierarchy và Project Explorer)
                 ImGuiID dock_id_left = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.15f, nullptr, &dock_main_id);
 
-                // 2. Chia bên phải (25% cho Inspector)
+                // 2. Chia bên phải (25% cho Inspector và Systems)
                 ImGuiID dock_id_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
 
                 // 3. Chia dọc bên trái: Trên (Hierarchy 60%), Dưới (Project Explorer 40%)
                 ImGuiID dock_id_left_top, dock_id_left_bottom;
                 dock_id_left_top = ImGui::DockBuilderSplitNode(dock_id_left, ImGuiDir_Up, 0.60f, nullptr, &dock_id_left_bottom);
+                
+                // 4. Chia dọc bên phải: Trên (Inspector 70%), Dưới (Systems 30%)
+                ImGuiID dock_id_right_top, dock_id_right_bottom;
+                dock_id_right_top = ImGui::DockBuilderSplitNode(dock_id_right, ImGuiDir_Up, 0.70f, nullptr, &dock_id_right_bottom);
 
-                // 4. Gán các cửa sổ vào node tương ứng
+                // 5. Gán các cửa sổ vào node tương ứng
                 ImGui::DockBuilderDockWindow("Scene Hierarchy", dock_id_left_top);
                 ImGui::DockBuilderDockWindow("Project Explorer", dock_id_left_bottom);
-                ImGui::DockBuilderDockWindow("Inspector", dock_id_right);
+                ImGui::DockBuilderDockWindow("Inspector", dock_id_right_top);
+                ImGui::DockBuilderDockWindow("Systems", dock_id_right_bottom);
                 ImGui::DockBuilderDockWindow("Viewport", dock_main_id); // dock_main_id giờ là khu vực ở giữa (CentralNode)
 
                 ImGui::DockBuilderFinish(dockspace_id);
@@ -141,6 +148,7 @@ int main(int argc, char* argv[]) {
             projectExplorer.render();
             sceneHierarchy.render(engine.getWorld());
             inspector.render(sceneHierarchy.getSelectedEntity());
+            systemPanel.render();
 
             // ImGui::ShowDemoWindow();
         });

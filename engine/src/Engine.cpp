@@ -1,4 +1,6 @@
 #include "Levi/Engine.h"
+#include "Levi/SystemManager.h"
+#include "Levi/ScriptComponent.h"
 #include "imgui.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -30,6 +32,7 @@ namespace Levi {
     void EngineCore::unloadProject() {
         std::cout << "[Levi Engine] Unloading project..." << std::endl;
         luaScriptManager_.shutdown();
+        SystemManager::getInstance().clear();
     }
 
     void EngineCore::createViewportTexture(int width, int height) {
@@ -167,6 +170,33 @@ namespace Levi {
         std::cout << "[Levi Engine] Systems Registered." << std::endl;
     }
 
+    void EngineCore::executeLuaSystems() {
+        auto& systemManager = SystemManager::getInstance();
+        for (auto& sys : systemManager.getSystems()) {
+            if (!sys.isEnabled) continue;
+
+            auto builder = world_.query_builder();
+            for (const auto& compName : sys.queryComponents) {
+                if (compName == "Position2D") builder.with<Position2D>();
+                else if (compName == "Scale2D") builder.with<Scale2D>();
+                else if (compName == "Rotation2D") builder.with<Rotation2D>();
+                else if (compName == "Sprite2D") builder.with<Sprite2D>();
+                else {
+                    builder.with<ScriptComponent>(world_.entity(compName.c_str()));
+                }
+            }
+            
+            auto f = builder.build();
+            f.each([&sys](flecs::entity e) {
+                auto result = sys.callback(e.id());
+                if (!result.valid()) {
+                    sol::error err = result;
+                    std::cerr << "[Lua System Error] " << sys.name << ": " << err.what() << std::endl;
+                }
+            });
+        }
+    }
+
     void EngineCore::run(std::function<void()> uiCallback) {
         if (!isRunning_) return;
 
@@ -190,8 +220,15 @@ namespace Levi {
             // Check for Lua script changes (hot reload)
             luaScriptManager_.checkForChanges();
             
+            // Defer structural changes from Lua and UI
+            world_.defer_begin();
+
             // Call Lua onUpdate if exists
             luaScriptManager_.callFunction("onUpdate", world_.delta_time());
+            
+            executeLuaSystems();
+            
+            world_.defer_end(); // Flush changes before physics/systems if needed
             
             world_.progress(); // Run ECS Systems (Render System will draw into this Texture)
             
@@ -205,7 +242,9 @@ namespace Levi {
             beginFrame();
 
             if (uiCallback) {
+                world_.defer_begin();
                 uiCallback(); // Editor will use ImGui::Image() to display viewportTexture_
+                world_.defer_end();
             }
 
             endFrame();

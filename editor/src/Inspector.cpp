@@ -1,6 +1,8 @@
 #include "Inspector.h"
 #include <imgui.h>
+#include <imgui_stdlib.h> // For std::string support in InputText
 #include "Levi/Components.h"
+#include "Levi/ScriptComponent.h"
 
 namespace Levi {
 
@@ -80,25 +82,91 @@ namespace Levi {
             }
         }
 
+        // --- 5. Dynamic Script Components (Phase 3) ---
+        auto& registry = ScriptComponentRegistry::getInstance();
+        for (const auto& [schemaName, schema] : registry.getSchemas()) {
+            if (entity.has<ScriptComponent>(entity.world().entity(schemaName.c_str()))) {
+                if (ImGui::CollapsingHeader(schemaName.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+                    auto* comp = entity.get_mut<ScriptComponent>(entity.world().entity(schemaName.c_str()));
+                    
+                    for (const auto& field : schema.fields) {
+                        auto& value = comp->values[field.name];
+                        
+                        // If value doesn't exist, initialize with a default based on type
+                        if (value.index() == 0 && std::holds_alternative<float>(value) && std::get<float>(value) == 0.0f) {
+                             // std::variant default-initializes the first type. 
+                             // We might need to handle this more robustly if the first type isn't what we want.
+                        }
+
+                        switch (field.type) {
+                            case ScriptFieldType::Float: {
+                                float val = std::holds_alternative<float>(value) ? std::get<float>(value) : 0.0f;
+                                if (ImGui::DragFloat(field.name.c_str(), &val)) value = val;
+                                break;
+                            }
+                            case ScriptFieldType::Int: {
+                                int val = std::holds_alternative<int>(value) ? std::get<int>(value) : 0;
+                                if (ImGui::DragInt(field.name.c_str(), &val)) value = val;
+                                break;
+                            }
+                            case ScriptFieldType::String: {
+                                std::string val = std::holds_alternative<std::string>(value) ? std::get<std::string>(value) : "";
+                                if (ImGui::InputText(field.name.c_str(), &val)) value = val;
+                                break;
+                            }
+                            case ScriptFieldType::Bool: {
+                                bool val = std::holds_alternative<bool>(value) ? std::get<bool>(value) : false;
+                                if (ImGui::Checkbox(field.name.c_str(), &val)) value = val;
+                                break;
+                            }
+                            default: break;
+                        }
+                    }
+                }
+            }
+        }
+
         // --- Button to add components ---
         ImGui::Separator();
-        if (ImGui::Button("Add Component")) {
+        if (ImGui::Button("Add Component", ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
             ImGui::OpenPopup("AddComponentPopup");
         }
 
         if (ImGui::BeginPopup("AddComponentPopup")) {
             if (!entity.has<Position2D>() && ImGui::MenuItem("Position 2D")) {
-                entity.add<Position2D>();
+                entity.world().defer([entity]() {
+                    entity.add<Position2D>();
+                });
             }
             if (!entity.has<Scale2D>() && ImGui::MenuItem("Scale 2D")) {
-                entity.add<Scale2D>();
+                entity.world().defer([entity]() {
+                    entity.add<Scale2D>();
+                });
             }
             if (!entity.has<Rotation2D>() && ImGui::MenuItem("Rotation 2D")) {
-                entity.add<Rotation2D>();
+                entity.world().defer([entity]() {
+                    entity.add<Rotation2D>();
+                });
             }
             if (!entity.has<Sprite2D>() && ImGui::MenuItem("Sprite 2D")) {
-                entity.add<Sprite2D>();
+                entity.world().defer([entity]() {
+                    entity.add<Sprite2D>();
+                });
             }
+            
+            ImGui::Separator();
+            ImGui::TextDisabled("Lua Components");
+            for (const auto& [name, schema] : registry.getSchemas()) {
+                auto schemaEntity = entity.world().entity(name.c_str());
+                if (!entity.has<ScriptComponent>(schemaEntity) && ImGui::MenuItem(name.c_str())) {
+                    entity.world().defer([entity, name, schemaEntity]() {
+                        ScriptComponent comp;
+                        comp.schemaName = name;
+                        entity.set<ScriptComponent>(schemaEntity, comp);
+                    });
+                }
+            }
+            
             ImGui::EndPopup();
         }
 
@@ -106,3 +174,4 @@ namespace Levi {
     }
 
 }
+

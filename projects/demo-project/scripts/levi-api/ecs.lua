@@ -87,6 +87,38 @@ function ECS.addSprite(id, path, width, height) end
 ---@return Sprite2D|nil
 function ECS.getSprite(id) end
 
+-- --- Dynamic Abstraction API (Phase 1 & 2) ---
+
+---Define a new component type with default values
+---@param name string Component name
+---@param defaultValues table Key-value pairs of default fields
+function ECS.defineComponent(name, defaultValues) end
+
+---Add a defined script component to an entity
+---@param id integer Entity ID
+---@param schemaName string Name of the defined component
+function ECS.addComponent(id, schemaName) end
+
+---Set a value in a script component
+---@param id integer Entity ID
+---@param schemaName string Component name
+---@param fieldName string Field name
+---@param value any Value to set
+function ECS.setComponentValue(id, schemaName, fieldName, value) end
+
+---Get a value from a script component
+---@param id integer Entity ID
+---@param schemaName string Component name
+---@param fieldName string Field name
+---@return any
+function ECS.getComponentValue(id, schemaName, fieldName) end
+
+---Register a new logic system
+---@param name string System name
+---@param query string[] List of required component names
+---@param callback fun(entityId: integer) Function called for each matching entity
+function ECS.registerSystem(name, query, callback) end
+
 
 ---@class Vector2
 ---@field x number

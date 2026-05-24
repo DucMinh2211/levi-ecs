@@ -39,8 +39,15 @@ namespace Levi {
             drawEntityNode(e);
         });
 
-
-
+        // Right-click on window background
+        if (ImGui::BeginPopupContextWindow()) {
+            if (ImGui::MenuItem("Create New Entity")) {
+                world.defer([&world]() {
+                    world.entity("New Entity");
+                });
+            }
+            ImGui::EndPopup();
+        }
 
         // Click on empty space to deselect
         if (ImGui::IsMouseDown(0) && ImGui::IsWindowHovered()) {
@@ -71,6 +78,23 @@ namespace Levi {
 
         if (ImGui::IsItemClicked()) {
             selectedEntity_ = e;
+        }
+
+        // Entity context menu
+        if (ImGui::BeginPopupContextItem()) {
+            if (ImGui::MenuItem("Create Child")) {
+                e.world().defer([e]() {
+                    e.world().entity().child_of(e);
+                });
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Delete Entity")) {
+                e.world().defer([this, e]() {
+                    if (selectedEntity_ == e) selectedEntity_ = flecs::entity::null();
+                    e.destruct();
+                });
+            }
+            ImGui::EndPopup();
         }
 
         if (opened && hasChildren) {
