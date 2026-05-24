@@ -23,7 +23,7 @@ namespace Levi {
         }
 
         projectPath_ = projectPath;
-        scriptsFolder_ = (std::filesystem::path(projectPath) / "scripts").string();
+        scriptsFolder_ = projectPath; 
         world_ = world;
 
         if (!world_) return false;
@@ -31,6 +31,12 @@ namespace Levi {
         try {
             lua_ = sol::state();
             lua_.open_libraries(sol::lib::base, sol::lib::package, sol::lib::math, sol::lib::string, sol::lib::table);
+
+            // Set package.path to include the project root for require support
+            std::string path = lua_["package"]["path"];
+            path += ";" + projectPath_ + "/?.lua";
+            path += ";" + projectPath_ + "/?/init.lua";
+            lua_["package"]["path"] = path;
 
             bindECS(world_);
             
@@ -344,9 +350,15 @@ namespace Levi {
         if (!std::filesystem::exists(scriptsFolder_)) return;
         for (const auto& entry : std::filesystem::recursive_directory_iterator(scriptsFolder_)) {
             if (entry.is_regular_file() && entry.path().extension() == ".lua") {
-                if (entry.path().string().find("levi-api") != std::string::npos) continue;
+                std::string pathStr = entry.path().string();
+
+                // Skip internal engine API and editor configs
+                if (pathStr.find("levi-api") != std::string::npos) continue;
+                if (pathStr.find("editor-configs") != std::string::npos) continue;
+                if (pathStr.find(".git") != std::string::npos) continue;
+
                 auto info = std::make_unique<ScriptInfo>();
-                info->path = entry.path().string();
+                info->path = pathStr;
                 info->lastModified = std::filesystem::last_write_time(entry.path());
                 info->loaded = false;
                 scripts_.push_back(std::move(info));

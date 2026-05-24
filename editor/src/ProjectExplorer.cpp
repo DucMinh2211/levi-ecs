@@ -106,6 +106,14 @@ namespace Levi {
 
                 // --- Menu Chuột Phải ---
                 if (ImGui::BeginPopupContextItem()) {
+                    if (ImGui::MenuItem("Copy as path")) {
+                        ImGui::SetClipboardText(path.string().c_str());
+                    }
+                    if (ImGui::MenuItem("Copy relative path")) {
+                        std::filesystem::path relPath = std::filesystem::relative(path, projectPath_);
+                        ImGui::SetClipboardText(relPath.string().c_str());
+                    }
+                    ImGui::Separator();
                     if (ImGui::MenuItem("Open in Explorer/Finder")) {
                         // Nếu là file, ta nên mở folder chứa nó (hoặc tùy OS xử lý)
                         openInSystem(isDirectory ? path.string() : path.parent_path().string());
