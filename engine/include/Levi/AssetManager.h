@@ -16,6 +16,10 @@ namespace Levi {
         // Initializes the AssetManager with a renderer
         void init(SDL_Renderer* renderer);
 
+        // Set the base path for relative asset resolution
+        void setBasePath(const std::string& path) { basePath_ = path; }
+        const std::string& getBasePath() const { return basePath_; }
+
         // Loads a texture from file. Returns existing one if already loaded.
         // Currently supports BMP (native SDL3).
         SDL_Texture* loadTexture(const std::string& path);
@@ -28,6 +32,7 @@ namespace Levi {
 
     private:
         SDL_Renderer* renderer_ = nullptr;
+        std::string basePath_;
         std::unordered_map<std::string, SDL_Texture*> textures_;
     };
 

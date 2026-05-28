@@ -147,7 +147,7 @@ int main(int argc, char* argv[]) {
             // --- 3. Windows ---
             projectExplorer.render();
             sceneHierarchy.render(engine.getWorld());
-            inspector.render(sceneHierarchy.getSelectedEntity());
+            inspector.render(sceneHierarchy.getSelectedEntity(), projectExplorer.getProjectPath());
             systemPanel.render();
 
             // ImGui::ShowDemoWindow();

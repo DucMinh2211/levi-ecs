@@ -3,10 +3,37 @@
 #include <imgui_stdlib.h> // For std::string support in InputText
 #include "Levi/Components.h"
 #include "Levi/ScriptComponent.h"
+#include <filesystem>
 
 namespace Levi {
 
-    void Inspector::render(flecs::entity entity) {
+    static void drawAssetPathField(const char* label, std::string& path, const std::string& projectPath) {
+        char pathBuf[512];
+        strncpy(pathBuf, path.c_str(), sizeof(pathBuf));
+        if (ImGui::InputText(label, pathBuf, sizeof(pathBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            std::filesystem::path newPath(pathBuf);
+            if (!projectPath.empty() && newPath.is_absolute()) {
+                // Try to make it relative if it's within the project
+                try {
+                    std::filesystem::path absProj = std::filesystem::absolute(projectPath);
+                    if (newPath.string().find(absProj.string()) == 0) {
+                        path = std::filesystem::relative(newPath, absProj).string();
+                    } else {
+                        path = pathBuf;
+                    }
+                } catch (...) {
+                    path = pathBuf;
+                }
+            } else {
+                path = pathBuf;
+            }
+        }
+        if (ImGui::IsItemHovered()) {
+             ImGui::SetTooltip("Supports absolute paths (converted to relative if inside project) or relative paths to project root.");
+        }
+    }
+
+    void Inspector::render(flecs::entity entity, const std::string& projectPath) {
         ImGui::Begin("Inspector");
 
         if (!entity || !entity.is_alive()) {
@@ -71,11 +98,7 @@ namespace Levi {
             if (ImGui::CollapsingHeader("Sprite 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
                 auto* sprite = entity.get_mut<Sprite2D>();
                 
-                char pathBuf[512];
-                strncpy(pathBuf, sprite->texturePath.c_str(), sizeof(pathBuf));
-                if (ImGui::InputText("Texture", pathBuf, sizeof(pathBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
-                    sprite->texturePath = pathBuf;
-                }
+                drawAssetPathField("Texture", sprite->texturePath, projectPath);
 
                 ImGui::DragFloat("Size X", &sprite->size.x, 1.0f, 0.0f, 2048.0f);
                 ImGui::DragFloat("Size Y", &sprite->size.y, 1.0f, 0.0f, 2048.0f);
@@ -112,6 +135,13 @@ namespace Levi {
                             case ScriptFieldType::String: {
                                 std::string val = std::holds_alternative<std::string>(value) ? std::get<std::string>(value) : "";
                                 if (ImGui::InputText(field.name.c_str(), &val)) value = val;
+                                break;
+                            }
+                            case ScriptFieldType::AssetPath: {
+                                std::string val = std::holds_alternative<std::string>(value) ? std::get<std::string>(value) : "";
+                                if (drawAssetPathField(field.name.c_str(), val, projectPath); val != (std::holds_alternative<std::string>(value) ? std::get<std::string>(value) : "")) {
+                                    value = val;
+                                }
                                 break;
                             }
                             case ScriptFieldType::Bool: {

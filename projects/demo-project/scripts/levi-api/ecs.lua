@@ -89,6 +89,11 @@ function ECS.getSprite(id) end
 
 -- --- Dynamic Abstraction API (Phase 1 & 2) ---
 
+---Mark a string as an asset path for the Inspector
+---@param path string
+---@return table
+function ECS.AssetPath(path) end
+
 ---Define a new component type with default values
 ---@param name string Component name
 ---@param defaultValues table Key-value pairs of default fields

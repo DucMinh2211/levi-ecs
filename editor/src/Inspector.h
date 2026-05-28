@@ -9,7 +9,7 @@ namespace Levi {
         Inspector() = default;
         ~Inspector() = default;
 
-        void render(flecs::entity entity);
+        void render(flecs::entity entity, const std::string& projectPath);
     };
 
 }

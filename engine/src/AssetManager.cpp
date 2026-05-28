@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <iostream>
+#include <filesystem>
 
 namespace Levi {
 
@@ -14,9 +15,17 @@ namespace Levi {
     }
 
     SDL_Texture* AssetManager::loadTexture(const std::string& path) {
+        // Resolve path: if relative, prepend basePath_
+        std::filesystem::path fsPath(path);
+        std::string finalPath = path;
+
+        if (fsPath.is_relative() && !basePath_.empty()) {
+            finalPath = (std::filesystem::path(basePath_) / fsPath).string();
+        }
+
         // If texture already exists, return it
-        if (textures_.find(path) != textures_.end()) {
-            return textures_[path];
+        if (textures_.find(finalPath) != textures_.end()) {
+            return textures_[finalPath];
         }
 
         if (!renderer_) {
@@ -25,9 +34,9 @@ namespace Levi {
         }
 
         // Load surface using SDL_image
-        SDL_Surface* surface = IMG_Load(path.c_str());
+        SDL_Surface* surface = IMG_Load(finalPath.c_str());
         if (!surface) {
-            std::cerr << "[AssetManager] Failed to load image: " << path << " - " << SDL_GetError() << std::endl;
+            std::cerr << "[AssetManager] Failed to load image: " << finalPath << " - " << SDL_GetError() << std::endl;
             return nullptr;
         }
 
@@ -36,13 +45,13 @@ namespace Levi {
         SDL_DestroySurface(surface); // Surface is no longer needed after texture creation
 
         if (!texture) {
-            std::cerr << "[AssetManager] Failed to create texture: " << path << " - " << SDL_GetError() << std::endl;
+            std::cerr << "[AssetManager] Failed to create texture: " << finalPath << " - " << SDL_GetError() << std::endl;
             return nullptr;
         }
 
         // Cache the texture
-        textures_[path] = texture;
-        std::cout << "[AssetManager] Texture loaded: " << path << std::endl;
+        textures_[finalPath] = texture;
+        std::cout << "[AssetManager] Texture loaded: " << finalPath << std::endl;
         
         return texture;
     }

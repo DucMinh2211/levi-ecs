@@ -19,10 +19,11 @@ namespace Levi {
 
     bool EngineCore::loadProject(const std::string& projectPath) {
         std::cout << "[Levi Engine] Loading project: " << projectPath << std::endl;
-        
+
+        assetManager_.setBasePath(projectPath);
+
         // Initialize Lua scripts for this project
-        if (!luaScriptManager_.init(projectPath, &world_)) {
-            std::cerr << "[Levi Engine] Failed to initialize Lua for project: " << projectPath << std::endl;
+        if (!luaScriptManager_.init(projectPath, &world_)) {            std::cerr << "[Levi Engine] Failed to initialize Lua for project: " << projectPath << std::endl;
             return false;
         }
 
@@ -31,8 +32,8 @@ namespace Levi {
 
     void EngineCore::unloadProject() {
         std::cout << "[Levi Engine] Unloading project..." << std::endl;
-        luaScriptManager_.shutdown();
         SystemManager::getInstance().clear();
+        luaScriptManager_.shutdown();
     }
 
     void EngineCore::createViewportTexture(int width, int height) {
@@ -49,7 +50,7 @@ namespace Levi {
     bool EngineCore::init(const EngineConfig& config) {
         std::cout << "[Levi Engine] Initializing SDL3..." << std::endl;
 
-        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
+        if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
             std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
             return false;
         }

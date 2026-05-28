@@ -154,6 +154,13 @@ namespace Levi {
 
         // --- Dynamic Script Components (ECS Abstraction Phase 1) ---
 
+        ecs["AssetPath"] = [this](std::string path) -> sol::table {
+            sol::table t = lua_.create_table();
+            t["__type"] = "AssetPath";
+            t["value"] = path;
+            return t;
+        };
+
         ecs["defineComponent"] = [](std::string name, sol::table defaultValues) {
             ScriptComponentSchema schema;
             schema.name = name;
@@ -167,6 +174,12 @@ namespace Levi {
                 else if (val.is<int>()) type = ScriptFieldType::Int;
                 else if (val.is<std::string>()) type = ScriptFieldType::String;
                 else if (val.is<bool>()) type = ScriptFieldType::Bool;
+                else if (val.is<sol::table>()) {
+                    sol::table t = val.as<sol::table>();
+                    if (t["__type"] == "AssetPath") {
+                        type = ScriptFieldType::AssetPath;
+                    }
+                }
                 
                 schema.fields.push_back({fieldName, type});
             }
@@ -187,6 +200,13 @@ namespace Levi {
             
             ScriptComponent comp;
             comp.schemaName = schemaName;
+
+            // Initialize default values from schema
+            for (const auto& field : schema->fields) {
+                // For AssetPath, we might want to extract the default path if we stored it
+                // Currently defineComponent doesn't store default values in the schema, 
+                // but ScriptComponent initialization in setComponentValue or Inspector handles it.
+            }
             
             // Attach as a pair (ScriptComponent, schemaName) to allow multiple script components on one entity
             e.set<ScriptComponent>(world->entity(schemaName.c_str()), comp);
@@ -203,6 +223,12 @@ namespace Levi {
             else if (value.is<int>()) comp->values[fieldName] = value.as<int>();
             else if (value.is<std::string>()) comp->values[fieldName] = value.as<std::string>();
             else if (value.is<bool>()) comp->values[fieldName] = value.as<bool>();
+            else if (value.is<sol::table>()) {
+                sol::table t = value.as<sol::table>();
+                if (t["__type"] == "AssetPath") {
+                    comp->values[fieldName] = t.get<std::string>("value");
+                }
+            }
         };
 
         ecs["getComponentValue"] = [world](uint64_t id, std::string schemaName, std::string fieldName, sol::this_state L) -> sol::object {
