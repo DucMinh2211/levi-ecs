@@ -1,10 +1,46 @@
 #include "SceneHierarchy.h"
 #include "flecs/addons/cpp/c_types.hpp"
 #include <imgui.h>
+#include <memory>
 
 namespace Levi {
 
-    void SceneHierarchy::render(flecs::world& world) {
+    namespace {
+        std::unique_ptr<EditorCommand> makeCreateEntityCommand(flecs::world world, flecs::entity parent = {}) {
+            struct CreatedEntityState {
+                CreatedEntityState(flecs::world sourceWorld, flecs::entity_t sourceParent)
+                    : world(std::move(sourceWorld)), parentId(sourceParent) {}
+
+                flecs::world world;
+                flecs::entity_t parentId;
+                flecs::entity_t entityId = 0;
+            };
+
+            auto state = std::make_shared<CreatedEntityState>(
+                std::move(world), parent ? parent.id() : 0);
+
+            return std::make_unique<LambdaCommand>(
+                parent ? "Create Child" : "Create Entity",
+                [state]() {
+                    if (!state->entityId) return;
+                    auto entity = state->world.entity(state->entityId);
+                    if (entity.is_alive()) entity.destruct();
+                },
+                [state]() {
+                    auto entity = state->world.entity();
+                    if (state->parentId) {
+                        auto parent = state->world.entity(state->parentId);
+                        if (parent.is_alive()) entity.child_of(parent);
+                    } else {
+                        entity.set_name("New Entity");
+                    }
+                    state->entityId = entity.id();
+                });
+        }
+    }
+
+    void SceneHierarchy::render(flecs::world& world, UndoRedoManager& history) {
+        history_ = &history;
         ImGui::Begin("Scene Hierarchy");
 
         // Query tìm các entity gốc
@@ -42,9 +78,7 @@ namespace Levi {
         // Right-click on window background
         if (ImGui::BeginPopupContextWindow()) {
             if (ImGui::MenuItem("Create New Entity")) {
-                world.defer([&world]() {
-                    world.entity("New Entity");
-                });
+                history.execute(makeCreateEntityCommand(world));
             }
             ImGui::EndPopup();
         }
@@ -83,9 +117,7 @@ namespace Levi {
         // Entity context menu
         if (ImGui::BeginPopupContextItem()) {
             if (ImGui::MenuItem("Create Child")) {
-                e.world().defer([e]() {
-                    e.world().entity().child_of(e);
-                });
+                history_->execute(makeCreateEntityCommand(e.world(), e));
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Delete Entity")) {

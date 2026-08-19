@@ -3,6 +3,8 @@
 #include <flecs.h>
 #include <string>
 
+#include "UndoRedoManager.h"
+
 namespace Levi {
 
     class SceneHierarchy {
@@ -11,7 +13,7 @@ namespace Levi {
         ~SceneHierarchy() = default;
 
         // Pass the engine's world to render all entities
-        void render(flecs::world& world);
+        void render(flecs::world& world, UndoRedoManager& history);
 
         // Track the currently selected entity for the Inspector
         flecs::entity getSelectedEntity() const { return selectedEntity_; }
@@ -19,6 +21,7 @@ namespace Levi {
 
     private:
         flecs::entity selectedEntity_;
+        UndoRedoManager* history_ = nullptr;
         void drawEntityNode(flecs::entity e);
     };
 

@@ -32,7 +32,6 @@ namespace Levi {
 
     void EngineCore::unloadProject() {
         std::cout << "[Levi Engine] Unloading project..." << std::endl;
-        SystemManager::getInstance().clear();
         luaScriptManager_.shutdown();
     }
 

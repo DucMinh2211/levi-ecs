@@ -265,6 +265,12 @@ namespace Levi {
 
         std::cout << "[LuaScriptManager] Shutting down Lua VM..." << std::endl;
 
+        // Lua systems keep protected_function references into this VM. Release
+        // them before any script environments or the Lua state are destroyed.
+        // Keeping this cleanup here also makes project reloads and direct use of
+        // LuaScriptManager safe without relying on EngineCore's call order.
+        SystemManager::getInstance().clear();
+
         // 1. Dọn dẹp entities của các script trước
         if (world_) {
             for (auto& scriptInfoPtr : scripts_) {
@@ -298,6 +304,7 @@ namespace Levi {
         } catch(...) {}
 
         world_ = nullptr;
+        ScriptComponentRegistry::getInstance().clear();
         initialized_ = false;
         std::cout << "[LuaScriptManager] Shutdown successful." << std::endl;
     }

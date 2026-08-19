@@ -6,6 +6,8 @@ add_executable(LeviEditor
     src/SceneHierarchy.h
     src/Inspector.cpp
     src/Inspector.h
+    src/UndoRedoManager.cpp
+    src/UndoRedoManager.h
 )
 
 target_include_directories(LeviEditor PRIVATE 

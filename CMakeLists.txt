@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.24)
-project(Levi-ECS VERSION 0.1.0 LANGUAGES C CXX OBJC)
+project(Levi-ECS VERSION 0.1.0 LANGUAGES C CXX)
+
+# Native File Dialog needs Objective-C sources on macOS, but requiring an
+# Objective-C compiler globally prevents otherwise valid Windows/Linux builds.
+if(APPLE)
+    enable_language(OBJC)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -92,3 +98,8 @@ set(EDITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/editor)
 # Add subdirectories
 add_subdirectory(engine)
 add_subdirectory(editor)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

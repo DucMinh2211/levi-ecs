@@ -3,8 +3,18 @@
 Progress tracking for the Levi-ECS project, categorized by implementation status.
 
 ## 🔴 Critical Issues (High Priority)
-- [ ] **Fix Engine Shutdown Crash:** Resolve `fatal: poly.c: 59: assert: hdr->magic == ECS_OBJECT_MAGIC` occurring when closing the editor. (Destruction order conflict between Lua GC and Flecs World).
+- [x] **Fix Engine Shutdown Crash:** Lua callbacks/environments are released before the Lua VM, and the Lua manager is destroyed before the Flecs world. Covered by a shutdown/re-init lifecycle test.
 - [ ] **Undo/Redo System:** Essential for editor productivity (tracking Inspector/Hierarchy changes).
+    - [x] Command history core with bounded undo/redo stacks and redo invalidation.
+    - [x] Editor menu and `Ctrl+Z` / `Ctrl+Y` shortcuts.
+    - [x] Inspector edits for built-in and Lua components, rename, and add-component actions.
+    - [x] Hierarchy create entity/create child actions.
+    - [ ] Snapshot and restore deleted entity subtrees.
+
+## 📊 Current Status (2026-08-19)
+- [x] Windows CMake/Ninja build restored; Objective-C is now enabled only on macOS.
+- [x] Automated lifecycle and undo/redo core tests added and passing.
+- [ ] Current focus: finish hierarchy deletion support, then complete the Undo/Redo milestone.
 
 ## ✅ 1. Completed (Core Foundation & Stability)
 - [x] **Engine Core Initialization:** SDL3 Integration (Windowing & Renderer).

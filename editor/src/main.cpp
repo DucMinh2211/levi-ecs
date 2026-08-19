@@ -10,6 +10,7 @@
 #include "SceneHierarchy.h"
 #include "Inspector.h"
 #include "SystemPanel.h"
+#include "UndoRedoManager.h"
 
 int main(int argc, char* argv[]) {
     std::cout << "--- Levi Studio Editor ---" << std::endl;
@@ -25,6 +26,7 @@ int main(int argc, char* argv[]) {
         Levi::SceneHierarchy sceneHierarchy;
         Levi::Inspector inspector;
         Levi::SystemPanel systemPanel;
+        Levi::UndoRedoManager undoRedo;
 
         // --- Logic quản lý đường dẫn imgui.ini ---
         static char iniPathBuf[1024];
@@ -109,6 +111,7 @@ int main(int argc, char* argv[]) {
                             updateIniPath(outPath); // Cập nhật file cấu hình cho project mới
                             
                             // Reload Lua scripts for new project
+                            undoRedo.clear();
                             engine.loadProject(outPath);
                             
                             NFD_FreePath(outPath);
@@ -121,6 +124,20 @@ int main(int argc, char* argv[]) {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Editor")) {
+                    std::string undoLabel = undoRedo.canUndo()
+                        ? std::string("Undo ") + undoRedo.undoName()
+                        : "Undo";
+                    if (ImGui::MenuItem(undoLabel.c_str(), "Ctrl+Z", false, undoRedo.canUndo())) {
+                        undoRedo.undo();
+                    }
+
+                    std::string redoLabel = undoRedo.canRedo()
+                        ? std::string("Redo ") + undoRedo.redoName()
+                        : "Redo";
+                    if (ImGui::MenuItem(redoLabel.c_str(), "Ctrl+Y", false, undoRedo.canRedo())) {
+                        undoRedo.redo();
+                    }
+                    ImGui::Separator();
                     if (ImGui::MenuItem("Save Layout")) {
                         ImGui::SaveIniSettingsToDisk(ImGui::GetIO().IniFilename);
                         std::cout << "[Editor] Layout Saved to: " << ImGui::GetIO().IniFilename << std::endl;
@@ -131,6 +148,12 @@ int main(int argc, char* argv[]) {
                     ImGui::EndMenu();
                 }
                 ImGui::EndMainMenuBar();
+            }
+
+            ImGuiIO& io = ImGui::GetIO();
+            if (!ImGui::IsAnyItemActive()) {
+                if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) undoRedo.undo();
+                if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) undoRedo.redo();
             }
 
             // --- 2. Viewport Window ---
@@ -146,8 +169,8 @@ int main(int argc, char* argv[]) {
 
             // --- 3. Windows ---
             projectExplorer.render();
-            sceneHierarchy.render(engine.getWorld());
-            inspector.render(sceneHierarchy.getSelectedEntity(), projectExplorer.getProjectPath());
+            sceneHierarchy.render(engine.getWorld(), undoRedo);
+            inspector.render(sceneHierarchy.getSelectedEntity(), projectExplorer.getProjectPath(), undoRedo);
             systemPanel.render();
 
             // ImGui::ShowDemoWindow();

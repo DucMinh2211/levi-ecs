@@ -4,12 +4,14 @@
 #include "Levi/Components.h"
 #include "Levi/ScriptComponent.h"
 #include <filesystem>
+#include <memory>
 
 namespace Levi {
 
     static void drawAssetPathField(const char* label, std::string& path, const std::string& projectPath) {
         char pathBuf[512];
-        strncpy(pathBuf, path.c_str(), sizeof(pathBuf));
+        strncpy(pathBuf, path.c_str(), sizeof(pathBuf) - 1);
+        pathBuf[sizeof(pathBuf) - 1] = '\0';
         if (ImGui::InputText(label, pathBuf, sizeof(pathBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
             std::filesystem::path newPath(pathBuf);
             if (!projectPath.empty() && newPath.is_absolute()) {
@@ -33,7 +35,36 @@ namespace Levi {
         }
     }
 
-    void Inspector::render(flecs::entity entity, const std::string& projectPath) {
+    void Inspector::trackItemEdit(
+        flecs::entity entity,
+        UndoRedoManager& history,
+        const std::string& commandName,
+        std::any valueBeforeWidget,
+        std::any currentValue,
+        AnySetter setter) {
+        const unsigned int itemId = ImGui::GetItemID();
+        if (ImGui::IsItemActivated()) {
+            editStartValues_[itemId] = std::move(valueBeforeWidget);
+        }
+
+        if (!ImGui::IsItemDeactivatedAfterEdit()) return;
+
+        auto start = editStartValues_.find(itemId);
+        if (start == editStartValues_.end()) return;
+
+        std::any previousValue = std::move(start->second);
+        editStartValues_.erase(start);
+        history.record(std::make_unique<LambdaCommand>(
+            commandName,
+            [entity, previousValue, setter]() {
+                if (entity.is_alive()) setter(entity, previousValue);
+            },
+            [entity, currentValue, setter]() {
+                if (entity.is_alive()) setter(entity, currentValue);
+            }));
+    }
+
+    void Inspector::render(flecs::entity entity, const std::string& projectPath, UndoRedoManager& history) {
         ImGui::Begin("Inspector");
 
         if (!entity || !entity.is_alive()) {
@@ -44,10 +75,16 @@ namespace Levi {
 
         // Display Entity Name
         char nameBuf[128];
-        strncpy(nameBuf, entity.name().c_str(), sizeof(nameBuf));
+        const std::string nameBefore = entity.name().c_str();
+        strncpy(nameBuf, nameBefore.c_str(), sizeof(nameBuf) - 1);
+        nameBuf[sizeof(nameBuf) - 1] = '\0';
         if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
             entity.set_name(nameBuf);
         }
+        trackItemEdit(entity, history, "Rename Entity", nameBefore, std::string(entity.name().c_str()),
+            [](flecs::entity target, const std::any& value) {
+                target.set_name(std::any_cast<const std::string&>(value).c_str());
+            });
 
         ImGui::Separator();
 
@@ -55,8 +92,14 @@ namespace Levi {
         if (entity.has<Position2D>()) {
             if (ImGui::CollapsingHeader("Position 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
                 auto* pos = entity.get_mut<Position2D>();
+                Position2D before = *pos;
                 ImGui::DragFloat("X", &pos->x, 1.0f);
+                trackItemEdit(entity, history, "Edit Position X", before, *pos,
+                    [](flecs::entity target, const std::any& value) { target.set<Position2D>(std::any_cast<const Position2D&>(value)); });
+                before = *pos;
                 ImGui::DragFloat("Y", &pos->y, 1.0f);
+                trackItemEdit(entity, history, "Edit Position Y", before, *pos,
+                    [](flecs::entity target, const std::any& value) { target.set<Position2D>(std::any_cast<const Position2D&>(value)); });
             }
         }
 
@@ -64,8 +107,14 @@ namespace Levi {
         if (entity.has<Scale2D>()) {
             if (ImGui::CollapsingHeader("Scale 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
                 auto* scale = entity.get_mut<Scale2D>();
+                Scale2D before = *scale;
                 ImGui::DragFloat("W", &scale->x, 0.1f, 0.0f, 100.0f);
+                trackItemEdit(entity, history, "Edit Scale W", before, *scale,
+                    [](flecs::entity target, const std::any& value) { target.set<Scale2D>(std::any_cast<const Scale2D&>(value)); });
+                before = *scale;
                 ImGui::DragFloat("H", &scale->y, 0.1f, 0.0f, 100.0f);
+                trackItemEdit(entity, history, "Edit Scale H", before, *scale,
+                    [](flecs::entity target, const std::any& value) { target.set<Scale2D>(std::any_cast<const Scale2D&>(value)); });
             }
         }
 
@@ -73,7 +122,10 @@ namespace Levi {
         if (entity.has<Rotation2D>()) {
             if (ImGui::CollapsingHeader("Rotation 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
                 auto* rot = entity.get_mut<Rotation2D>();
+                Rotation2D before = *rot;
                 ImGui::DragFloat("Angle", &rot->angle, 1.0f, 0.0f, 360.0f);
+                trackItemEdit(entity, history, "Edit Rotation", before, *rot,
+                    [](flecs::entity target, const std::any& value) { target.set<Rotation2D>(std::any_cast<const Rotation2D&>(value)); });
                 
                 ImGui::Separator();
                 ImGui::Text("Pivot");
@@ -81,15 +133,21 @@ namespace Levi {
                 // Pivot Type Combo
                 const char* pivotTypes[] = { "Percent", "Pixel" };
                 int currentType = (int)rot->pivotType;
+                before = *rot;
                 if (ImGui::Combo("Pivot Type", &currentType, pivotTypes, IM_ARRAYSIZE(pivotTypes))) {
                     rot->pivotType = (PivotType)currentType;
                 }
+                trackItemEdit(entity, history, "Edit Pivot Type", before, *rot,
+                    [](flecs::entity target, const std::any& value) { target.set<Rotation2D>(std::any_cast<const Rotation2D&>(value)); });
 
+                before = *rot;
                 if (rot->pivotType == PivotType::Percent) {
                     ImGui::DragFloat2("Pivot (0-1)", &rot->pivot.x, 0.01f, 0.0f, 1.0f);
                 } else {
                     ImGui::DragFloat2("Pivot (Px)", &rot->pivot.x, 1.0f);
                 }
+                trackItemEdit(entity, history, "Edit Pivot", before, *rot,
+                    [](flecs::entity target, const std::any& value) { target.set<Rotation2D>(std::any_cast<const Rotation2D&>(value)); });
             }
         }
 
@@ -97,11 +155,19 @@ namespace Levi {
         if (entity.has<Sprite2D>()) {
             if (ImGui::CollapsingHeader("Sprite 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
                 auto* sprite = entity.get_mut<Sprite2D>();
-                
+                Sprite2D before = *sprite;
                 drawAssetPathField("Texture", sprite->texturePath, projectPath);
+                trackItemEdit(entity, history, "Edit Sprite Texture", before, *sprite,
+                    [](flecs::entity target, const std::any& value) { target.set<Sprite2D>(std::any_cast<const Sprite2D&>(value)); });
 
+                before = *sprite;
                 ImGui::DragFloat("Size X", &sprite->size.x, 1.0f, 0.0f, 2048.0f);
+                trackItemEdit(entity, history, "Edit Sprite Width", before, *sprite,
+                    [](flecs::entity target, const std::any& value) { target.set<Sprite2D>(std::any_cast<const Sprite2D&>(value)); });
+                before = *sprite;
                 ImGui::DragFloat("Size Y", &sprite->size.y, 1.0f, 0.0f, 2048.0f);
+                trackItemEdit(entity, history, "Edit Sprite Height", before, *sprite,
+                    [](flecs::entity target, const std::any& value) { target.set<Sprite2D>(std::any_cast<const Sprite2D&>(value)); });
             }
         }
 
@@ -113,6 +179,7 @@ namespace Levi {
                     auto* comp = entity.get_mut<ScriptComponent>(entity.world().entity(schemaName.c_str()));
                     
                     for (const auto& field : schema.fields) {
+                        ScriptComponent componentBefore = *comp;
                         auto& value = comp->values[field.name];
                         
                         // If value doesn't exist, initialize with a default based on type
@@ -151,6 +218,14 @@ namespace Levi {
                             }
                             default: break;
                         }
+
+                        trackItemEdit(entity, history, "Edit " + schemaName + "." + field.name,
+                            componentBefore, *comp,
+                            [schemaName](flecs::entity target, const std::any& value) {
+                                target.set<ScriptComponent>(
+                                    target.world().entity(schemaName.c_str()),
+                                    std::any_cast<const ScriptComponent&>(value));
+                            });
                     }
                 }
             }
@@ -164,24 +239,24 @@ namespace Levi {
 
         if (ImGui::BeginPopup("AddComponentPopup")) {
             if (!entity.has<Position2D>() && ImGui::MenuItem("Position 2D")) {
-                entity.world().defer([entity]() {
-                    entity.add<Position2D>();
-                });
+                history.execute(std::make_unique<LambdaCommand>("Add Position 2D",
+                    [entity]() { if (entity.is_alive()) entity.remove<Position2D>(); },
+                    [entity]() { if (entity.is_alive()) entity.add<Position2D>(); }));
             }
             if (!entity.has<Scale2D>() && ImGui::MenuItem("Scale 2D")) {
-                entity.world().defer([entity]() {
-                    entity.add<Scale2D>();
-                });
+                history.execute(std::make_unique<LambdaCommand>("Add Scale 2D",
+                    [entity]() { if (entity.is_alive()) entity.remove<Scale2D>(); },
+                    [entity]() { if (entity.is_alive()) entity.add<Scale2D>(); }));
             }
             if (!entity.has<Rotation2D>() && ImGui::MenuItem("Rotation 2D")) {
-                entity.world().defer([entity]() {
-                    entity.add<Rotation2D>();
-                });
+                history.execute(std::make_unique<LambdaCommand>("Add Rotation 2D",
+                    [entity]() { if (entity.is_alive()) entity.remove<Rotation2D>(); },
+                    [entity]() { if (entity.is_alive()) entity.add<Rotation2D>(); }));
             }
             if (!entity.has<Sprite2D>() && ImGui::MenuItem("Sprite 2D")) {
-                entity.world().defer([entity]() {
-                    entity.add<Sprite2D>();
-                });
+                history.execute(std::make_unique<LambdaCommand>("Add Sprite 2D",
+                    [entity]() { if (entity.is_alive()) entity.remove<Sprite2D>(); },
+                    [entity]() { if (entity.is_alive()) entity.add<Sprite2D>(); }));
             }
             
             ImGui::Separator();
@@ -189,11 +264,16 @@ namespace Levi {
             for (const auto& [name, schema] : registry.getSchemas()) {
                 auto schemaEntity = entity.world().entity(name.c_str());
                 if (!entity.has<ScriptComponent>(schemaEntity) && ImGui::MenuItem(name.c_str())) {
-                    entity.world().defer([entity, name, schemaEntity]() {
-                        ScriptComponent comp;
-                        comp.schemaName = name;
-                        entity.set<ScriptComponent>(schemaEntity, comp);
-                    });
+                    history.execute(std::make_unique<LambdaCommand>("Add " + name,
+                        [entity, name]() {
+                            if (entity.is_alive()) entity.remove<ScriptComponent>(entity.world().entity(name.c_str()));
+                        },
+                        [entity, name]() {
+                            if (!entity.is_alive()) return;
+                            ScriptComponent comp;
+                            comp.schemaName = name;
+                            entity.set<ScriptComponent>(entity.world().entity(name.c_str()), comp);
+                        }));
                 }
             }
             
