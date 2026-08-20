@@ -3,8 +3,16 @@
 #include <imgui.h>
 #include <iostream>
 #include <nfd.hpp>
+#include <SDL3/SDL.h>
 
 namespace Levi {
+
+    namespace {
+        bool isSceneFile(const std::filesystem::path& path) {
+            const std::string filename = path.filename().string();
+            return filename.ends_with(".levscene.json") || filename.ends_with(".levscene.bin");
+        }
+    }
 
     ProjectExplorer::ProjectExplorer() {
         // Khởi tạo NFD (Quan trọng để chạy được trên các OS)
@@ -39,7 +47,7 @@ namespace Levi {
         return (std::filesystem::path(projectPath_) / relativePath).make_preferred().string();
     }
 
-    void ProjectExplorer::render() {
+    void ProjectExplorer::render(AssetManager& assets, const FileOpenHandler& onOpenFile) {
         ImGui::Begin("Project Explorer");
 
         // Display current path
@@ -67,9 +75,11 @@ namespace Levi {
         }
 
         ImGui::Separator();
-        // ... (phần còn lại của render giữ nguyên)
         if (std::filesystem::exists(projectPath_)) {
-            drawDirectoryTree(projectPath_);
+            ImGui::BeginChild("AssetTree", ImVec2(0, ImGui::GetContentRegionAvail().y * 0.45f), true);
+            drawDirectoryTree(projectPath_, onOpenFile);
+            ImGui::EndChild();
+            drawAssetGrid(assets, onOpenFile);
         } else {
             ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Project path does not exist!");
         }
@@ -77,7 +87,47 @@ namespace Levi {
         ImGui::End();
     }
 
-    void ProjectExplorer::drawDirectoryTree(const std::filesystem::path& dirPath) {
+    void ProjectExplorer::drawAssetGrid(AssetManager& assets, const FileOpenHandler& onOpenFile) {
+        std::filesystem::path directory = selectedPath_;
+        if (directory.empty() || !std::filesystem::is_directory(directory)) directory = directory.parent_path();
+        if (directory.empty() || !std::filesystem::exists(directory)) directory = projectPath_;
+
+        ImGui::SeparatorText(directory.filename().string().c_str());
+        ImGui::BeginChild("AssetGrid", ImVec2(0, 0), true);
+        const float cellSize = 92.0f;
+        const int columns = std::max(1, static_cast<int>(ImGui::GetContentRegionAvail().x / cellSize));
+        ImGui::Columns(columns, nullptr, false);
+        try {
+            for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+                if (!entry.is_regular_file()) continue;
+                const auto extension = entry.path().extension().string();
+                const bool isImage = extension == ".png" || extension == ".jpg" || extension == ".jpeg"
+                    || extension == ".bmp" || extension == ".gif";
+                const std::string relative = std::filesystem::relative(entry.path(), projectPath_).generic_string();
+                ImGui::PushID(relative.c_str());
+                if (isImage) {
+                    SDL_Texture* texture = assets.loadTexture(relative);
+                    if (texture) ImGui::Image(reinterpret_cast<ImTextureID>(texture), ImVec2(64, 64));
+                    else ImGui::Button("Image", ImVec2(64, 64));
+                } else {
+                    ImGui::Button("File", ImVec2(64, 64));
+                }
+                if (ImGui::BeginDragDropSource()) {
+                    ImGui::SetDragDropPayload("LEVI_ASSET_PATH", relative.c_str(), relative.size() + 1);
+                    ImGui::TextUnformatted(relative.c_str());
+                    ImGui::EndDragDropSource();
+                }
+                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) activateFile(entry.path(), onOpenFile);
+                ImGui::TextWrapped("%s", entry.path().filename().string().c_str());
+                ImGui::NextColumn();
+                ImGui::PopID();
+            }
+        } catch (const std::exception&) {}
+        ImGui::Columns(1);
+        ImGui::EndChild();
+    }
+
+    void ProjectExplorer::drawDirectoryTree(const std::filesystem::path& dirPath, const FileOpenHandler& onOpenFile) {
         try {
             for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
                 const auto& path = entry.path();
@@ -95,13 +145,13 @@ namespace Levi {
                 // --- Xử lý Click & Double Click ---
                 if (ImGui::IsItemClicked()) {
                     selectedPath_ = path;
+                    if (!isDirectory && isSceneFile(path) && onOpenFile) onOpenFile(path);
                 }
 
                 if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
-                    // Double click: Chỉ mở FILE bằng ứng dụng mặc định
-                    if (!isDirectory) {
-                        openInSystem(path.string());
-                    }
+                    // Scene files are loaded on the first click above. Other
+                    // file types keep the usual double-click open behavior.
+                    if (!isDirectory && !isSceneFile(path)) activateFile(path, onOpenFile);
                 }
 
                 // --- Menu Chuột Phải ---
@@ -125,11 +175,16 @@ namespace Levi {
                 }
 
                 if (nodeOpen && isDirectory) {
-                    drawDirectoryTree(path);
+                    drawDirectoryTree(path, onOpenFile);
                     ImGui::TreePop();
                 }
             }
         } catch (const std::exception& e) {}
+    }
+
+    void ProjectExplorer::activateFile(const std::filesystem::path& path, const FileOpenHandler& onOpenFile) {
+        if (onOpenFile && onOpenFile(path)) return;
+        openInSystem(path.string());
     }
 
     void ProjectExplorer::openInSystem(const std::string& path) {

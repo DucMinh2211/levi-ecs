@@ -33,6 +33,10 @@ namespace Levi {
         std::unordered_map<std::string, ScriptValue> values;
     };
 
+    // Marks Flecs entities that only serve as pair targets for dynamic Lua
+    // component schemas. These are editor metadata, not scene entities.
+    struct ScriptComponentSchemaTag {};
+
     class ScriptComponentRegistry {
     public:
         static ScriptComponentRegistry& getInstance() {

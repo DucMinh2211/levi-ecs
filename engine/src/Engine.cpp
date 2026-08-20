@@ -1,12 +1,23 @@
 #include "Levi/Engine.h"
 #include "Levi/SystemManager.h"
 #include "Levi/ScriptComponent.h"
+#include "Levi/Input.h"
+#include "Levi/Modules.h"
+#include "Levi/SceneSerializer.h"
 #include "imgui.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_sdlrenderer3.h>
 #include <iostream>
+#include <system_error>
+
+namespace {
+    bool reportSceneError(std::string* error, const std::string& message) {
+        if (error) *error = message;
+        return false;
+    }
+}
 
 namespace Levi {
     EngineCore::EngineCore() : isRunning_(false), window_(nullptr), renderer_(nullptr), viewportTexture_(nullptr) {
@@ -20,10 +31,17 @@ namespace Levi {
     bool EngineCore::loadProject(const std::string& projectPath) {
         std::cout << "[Levi Engine] Loading project: " << projectPath << std::endl;
 
-        assetManager_.setBasePath(projectPath);
+        std::error_code pathError;
+        projectPath_ = std::filesystem::weakly_canonical(projectPath, pathError);
+        if (pathError) projectPath_ = std::filesystem::path(projectPath).lexically_normal();
+        currentScenePath_.clear();
+        editScenePathSnapshot_.clear();
+
+        assetManager_.setBasePath(projectPath_.string());
 
         // Initialize Lua scripts for this project
-        if (!luaScriptManager_.init(projectPath, &world_)) {            std::cerr << "[Levi Engine] Failed to initialize Lua for project: " << projectPath << std::endl;
+        if (!luaScriptManager_.init(projectPath_.string(), &world_)) {
+            std::cerr << "[Levi Engine] Failed to initialize Lua for project: " << projectPath << std::endl;
             return false;
         }
 
@@ -33,6 +51,121 @@ namespace Levi {
     void EngineCore::unloadProject() {
         std::cout << "[Levi Engine] Unloading project..." << std::endl;
         luaScriptManager_.shutdown();
+        currentScenePath_.clear();
+        editScenePathSnapshot_.clear();
+        projectPath_.clear();
+    }
+
+    void EngineCore::setCurrentScenePath(const std::filesystem::path& scenePath) {
+        currentScenePath_ = scenePath.lexically_normal();
+
+        std::error_code relativeError;
+        const auto relative = std::filesystem::relative(currentScenePath_, projectPath_, relativeError);
+        const bool outsideProject = relativeError || relative.empty()
+            || (!relative.begin()->empty() && *relative.begin() == "..");
+        luaScriptManager_.setCurrentScenePath(
+            outsideProject ? currentScenePath_.generic_string() : relative.generic_string());
+    }
+
+    bool EngineCore::loadScene(const std::filesystem::path& scenePath, std::string* error) {
+        const std::string filename = scenePath.filename().string();
+        bool loaded = false;
+        if (filename.ends_with(".levscene.json")) {
+            loaded = SceneSerializer::loadJson(world_, scenePath, error);
+        } else if (filename.ends_with(".levscene.bin")) {
+            loaded = SceneSerializer::loadBinary(world_, scenePath, error);
+        } else {
+            return reportSceneError(error, "unsupported scene format: " + scenePath.string());
+        }
+
+        if (loaded) setCurrentScenePath(scenePath);
+        return loaded;
+    }
+
+    void EngineCore::play() {
+        if (playState_ == PlayState::Paused) {
+            resume();
+            return;
+        }
+        if (playState_ != PlayState::Edit) return;
+        editSceneSnapshot_ = SceneSerializer::toJson(world_);
+        editScenePathSnapshot_ = currentScenePath_;
+        playState_ = PlayState::Playing;
+        luaScriptManager_.startRuntime();
+    }
+
+    void EngineCore::pause() {
+        if (playState_ == PlayState::Playing) playState_ = PlayState::Paused;
+    }
+
+    void EngineCore::resume() {
+        if (playState_ == PlayState::Paused) playState_ = PlayState::Playing;
+    }
+
+    void EngineCore::stop() {
+        if (playState_ == PlayState::Edit) return;
+        luaScriptManager_.stopRuntime();
+        std::string error;
+        if (!editSceneSnapshot_.empty() && !SceneSerializer::fromJson(world_, editSceneSnapshot_, &error)) {
+            std::cerr << "[Editor] Failed to restore edit scene: " << error << std::endl;
+        }
+        currentScenePath_ = editScenePathSnapshot_;
+        if (!currentScenePath_.empty()) setCurrentScenePath(currentScenePath_);
+        else luaScriptManager_.setCurrentScenePath({});
+        editSceneSnapshot_.clear();
+        editScenePathSnapshot_.clear();
+        playState_ = PlayState::Edit;
+    }
+
+    void EngineCore::processPendingSceneLoad() {
+        auto request = luaScriptManager_.takePendingSceneLoad();
+        if (!request || request->empty() || playState_ == PlayState::Edit) return;
+
+        std::filesystem::path requestedPath(*request);
+        if (!requestedPath.is_absolute()) requestedPath = projectPath_ / requestedPath;
+
+        std::error_code pathError;
+        const auto resolved = std::filesystem::weakly_canonical(requestedPath, pathError);
+        if (pathError) {
+            const std::string message = "cannot resolve scene path: " + requestedPath.string();
+            std::cerr << "[Scene] " << message << std::endl;
+            luaScriptManager_.callFunction("onSceneLoadFailed", *request, message);
+            return;
+        }
+
+        const auto relative = resolved.lexically_relative(projectPath_);
+        if (relative.empty() || (!relative.begin()->empty() && *relative.begin() == "..")) {
+            const std::string message = "runtime scene must be inside the active project: " + resolved.string();
+            std::cerr << "[Scene] " << message << std::endl;
+            luaScriptManager_.callFunction("onSceneLoadFailed", *request, message);
+            return;
+        }
+
+        const std::string filename = resolved.filename().string();
+        if ((!filename.ends_with(".levscene.json") && !filename.ends_with(".levscene.bin"))
+            || !std::filesystem::is_regular_file(resolved)) {
+            const std::string message = "runtime scene does not exist or has an unsupported format: "
+                + resolved.string();
+            std::cerr << "[Scene] " << message << std::endl;
+            luaScriptManager_.callFunction("onSceneLoadFailed", *request, message);
+            return;
+        }
+
+        const std::string previousScene = luaScriptManager_.getCurrentScenePath();
+        luaScriptManager_.callFunction("onSceneUnload", previousScene);
+
+        std::string error;
+        if (!loadScene(resolved, &error)) {
+            std::cerr << "[Scene] Runtime load failed: " << error << std::endl;
+            luaScriptManager_.callFunction("onSceneLoadFailed", *request, error);
+            return;
+        }
+
+        // The serializer has replaced every scene entity. Old per-script IDs
+        // must not survive and accidentally target a future recycled Flecs ID.
+        luaScriptManager_.forgetCreatedEntities();
+        std::cout << "[Scene] Runtime scene loaded: " << resolved << std::endl;
+        luaScriptManager_.callFunction("onSceneLoaded", luaScriptManager_.getCurrentScenePath());
     }
 
     void EngineCore::createViewportTexture(int width, int height) {
@@ -96,76 +229,13 @@ namespace Levi {
         return true;
     }
 
-    struct RendererRef {
-        SDL_Renderer* ptr;
-    };
-
-    struct AssetManagerRef {
-        AssetManager* ptr;
-    };
-
     void EngineCore::setupSystems() {
         // Register Renderer and AssetManager pointers into ECS World as Singletons
         world_.set<RendererRef>({ renderer_ });
         world_.set<AssetManagerRef>({ &assetManager_ });
 
-        // Create 2D Render System
-        world_.system<const Position2D, const Sprite2D>()
-            .with<Scale2D>().optional()
-            .with<Rotation2D>().optional()
-            .kind(flecs::OnUpdate)
-            .each([](flecs::entity e, const Position2D& pos, const Sprite2D& sprite) {
-                auto world = e.world();
-                auto rRef = world.get<RendererRef>();
-                auto amRef = world.get<AssetManagerRef>();
-
-                if (!rRef || !rRef->ptr || !amRef || !amRef->ptr) return;
-
-                SDL_Texture* tex = amRef->ptr->loadTexture(sprite.texturePath);
-                
-                // 1. Calculate final size with Scale
-                float finalWidth = sprite.size.x;
-                float finalHeight = sprite.size.y;
-                if (auto scale = e.get<Scale2D>()) {
-                    finalWidth *= scale->x;
-                    finalHeight *= scale->y;
-                }
-
-                // 2. Handle Rotation and Pivot
-                float angle = 0.0f;
-                SDL_FPoint center = { finalWidth / 2.0f, finalHeight / 2.0f }; // Default center
-
-                if (auto rot = e.get<Rotation2D>()) {
-                    angle = rot->angle;
-                    if (rot->pivotType == PivotType::Percent) {
-                        center.x = rot->pivot.x * finalWidth;
-                        center.y = rot->pivot.y * finalHeight;
-                    } else {
-                        center.x = rot->pivot.x;
-                        center.y = rot->pivot.y;
-                    }
-                }
-
-                // 3. Define destination rect (Position is the Pivot point in world space)
-                SDL_FRect dest = { 
-                    pos.x - center.x, 
-                    pos.y - center.y, 
-                    finalWidth, 
-                    finalHeight 
-                };
-
-                if (tex) {
-                    SDL_RenderTextureRotated(rRef->ptr, tex, nullptr, &dest, (double)angle, &center, SDL_FLIP_NONE);
-                } else {
-                    // Fallback: Draw placeholder square
-                    SDL_SetRenderDrawColor(rRef->ptr, 255, 255, 0, 255);
-                    SDL_RenderFillRect(rRef->ptr, &dest);
-                    
-                    // Optional: draw pivot point for debugging if needed
-                    // SDL_SetRenderDrawColor(rRef->ptr, 255, 0, 0, 255);
-                    // SDL_RenderPoint(rRef->ptr, pos.x, pos.y);
-                }
-            });
+        world_.import<TransformModule>();
+        world_.import<RenderModule>();
 
         std::cout << "[Levi Engine] Systems Registered." << std::endl;
     }
@@ -181,6 +251,9 @@ namespace Levi {
                 else if (compName == "Scale2D") builder.with<Scale2D>();
                 else if (compName == "Rotation2D") builder.with<Rotation2D>();
                 else if (compName == "Sprite2D") builder.with<Sprite2D>();
+                else if (compName == "AABBCollider2D") builder.with<AABBCollider2D>();
+                else if (compName == "CircleCollider2D") builder.with<CircleCollider2D>();
+                else if (compName == "Camera2D") builder.with<Camera2D>();
                 else {
                     builder.with<ScriptComponent>(world_.entity(compName.c_str()));
                 }
@@ -211,6 +284,7 @@ namespace Levi {
                     isRunning_ = false;
                 }
             }
+            Input::instance().update();
 
             // --- 2. Render to Viewport Texture (Game Logic) ---
             SDL_SetRenderTarget(renderer_, viewportTexture_); // Switch to virtual screen
@@ -220,17 +294,19 @@ namespace Levi {
             // Check for Lua script changes (hot reload)
             luaScriptManager_.checkForChanges();
             
-            // Defer structural changes from Lua and UI
-            world_.defer_begin();
+            if (playState_ == PlayState::Playing) {
+                world_.defer_begin();
+                luaScriptManager_.callFunction("onUpdate", world_.delta_time());
+                if (!luaScriptManager_.hasPendingSceneLoad()) executeLuaSystems();
+                world_.defer_end();
+            }
 
-            // Call Lua onUpdate if exists
-            luaScriptManager_.callFunction("onUpdate", world_.delta_time());
+            if (luaScriptManager_.isRuntimeActive() && luaScriptManager_.hasPendingSceneLoad()) {
+                processPendingSceneLoad();
+            }
             
-            executeLuaSystems();
-            
-            world_.defer_end(); // Flush changes before physics/systems if needed
-            
-            world_.progress(); // Run ECS Systems (Render System will draw into this Texture)
+            world_.set_time_scale(playState_ == PlayState::Playing ? 1.0f : 0.0f);
+            world_.progress(); // Rendering continues while simulation receives a zero delta in Edit/Pause.
             
             SDL_SetRenderTarget(renderer_, nullptr); // Switch back to main screen
             // --------------------------------------------------

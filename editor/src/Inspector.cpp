@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include <imgui_stdlib.h> // For std::string support in InputText
 #include "Levi/Components.h"
+#include "Levi/Camera2D.h"
 #include "Levi/ScriptComponent.h"
 #include <filesystem>
 #include <memory>
@@ -32,6 +33,12 @@ namespace Levi {
         }
         if (ImGui::IsItemHovered()) {
              ImGui::SetTooltip("Supports absolute paths (converted to relative if inside project) or relative paths to project root.");
+        }
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("LEVI_ASSET_PATH")) {
+                path = static_cast<const char*>(payload->Data);
+            }
+            ImGui::EndDragDropTarget();
         }
     }
 
@@ -171,7 +178,67 @@ namespace Levi {
             }
         }
 
-        // --- 5. Dynamic Script Components (Phase 3) ---
+        if (entity.has<AABBCollider2D>()) {
+            if (ImGui::CollapsingHeader("AABB Collider 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
+                auto* collider = entity.get_mut<AABBCollider2D>();
+                AABBCollider2D before = *collider;
+                ImGui::DragFloat2("Size##AABB", &collider->size.x, 1.0f, 0.0f);
+                trackItemEdit(entity, history, "Edit AABB Size", before, *collider,
+                    [](flecs::entity target, const std::any& value) { target.set<AABBCollider2D>(std::any_cast<const AABBCollider2D&>(value)); });
+                before = *collider;
+                ImGui::DragFloat2("Offset##AABB", &collider->offset.x, 1.0f);
+                trackItemEdit(entity, history, "Edit AABB Offset", before, *collider,
+                    [](flecs::entity target, const std::any& value) { target.set<AABBCollider2D>(std::any_cast<const AABBCollider2D&>(value)); });
+            }
+        }
+
+        if (entity.has<CircleCollider2D>()) {
+            if (ImGui::CollapsingHeader("Circle Collider 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
+                auto* collider = entity.get_mut<CircleCollider2D>();
+                CircleCollider2D before = *collider;
+                ImGui::DragFloat("Radius", &collider->radius, 1.0f, 0.0f);
+                trackItemEdit(entity, history, "Edit Circle Radius", before, *collider,
+                    [](flecs::entity target, const std::any& value) { target.set<CircleCollider2D>(std::any_cast<const CircleCollider2D&>(value)); });
+                before = *collider;
+                ImGui::DragFloat2("Offset##Circle", &collider->offset.x, 1.0f);
+                trackItemEdit(entity, history, "Edit Circle Offset", before, *collider,
+                    [](flecs::entity target, const std::any& value) { target.set<CircleCollider2D>(std::any_cast<const CircleCollider2D&>(value)); });
+            }
+        }
+
+        if (entity.has<Camera2D>()) {
+            if (ImGui::CollapsingHeader("Camera 2D", ImGuiTreeNodeFlags_DefaultOpen)) {
+                auto* camera = entity.get_mut<Camera2D>();
+                Camera2D before = *camera;
+                if (ImGui::DragFloat("Zoom##Camera", &camera->zoom, 0.05f,
+                    Camera2DSystem::MinZoom, Camera2DSystem::MaxZoom)) {
+                    camera->zoom = Camera2DSystem::clampZoom(camera->zoom);
+                }
+                trackItemEdit(entity, history, "Edit Camera Zoom", before, *camera,
+                    [](flecs::entity target, const std::any& value) { target.set<Camera2D>(std::any_cast<const Camera2D&>(value)); });
+
+                before = *camera;
+                ImGui::Checkbox("Active Camera", &camera->active);
+                trackItemEdit(entity, history, "Toggle Active Camera", before, *camera,
+                    [](flecs::entity target, const std::any& value) { target.set<Camera2D>(std::any_cast<const Camera2D&>(value)); });
+
+                before = *camera;
+                ImGui::DragFloat("Max Shake Offset", &camera->maxShakeOffset, 0.25f, 0.0f, 1000.0f);
+                trackItemEdit(entity, history, "Edit Camera Shake Offset", before, *camera,
+                    [](flecs::entity target, const std::any& value) { target.set<Camera2D>(std::any_cast<const Camera2D&>(value)); });
+
+                before = *camera;
+                ImGui::DragFloat("Max Shake Rotation", &camera->maxShakeRotation, 0.1f, 0.0f, 180.0f);
+                trackItemEdit(entity, history, "Edit Camera Shake Rotation", before, *camera,
+                    [](flecs::entity target, const std::any& value) { target.set<Camera2D>(std::any_cast<const Camera2D&>(value)); });
+
+                if (camera->shakeRemaining > 0.0f) {
+                    ImGui::TextDisabled("Shake remaining: %.2fs", camera->shakeRemaining);
+                }
+            }
+        }
+
+        // --- Dynamic Script Components ---
         auto& registry = ScriptComponentRegistry::getInstance();
         for (const auto& [schemaName, schema] : registry.getSchemas()) {
             if (entity.has<ScriptComponent>(entity.world().entity(schemaName.c_str()))) {
@@ -257,6 +324,30 @@ namespace Levi {
                 history.execute(std::make_unique<LambdaCommand>("Add Sprite 2D",
                     [entity]() { if (entity.is_alive()) entity.remove<Sprite2D>(); },
                     [entity]() { if (entity.is_alive()) entity.add<Sprite2D>(); }));
+            }
+            if (!entity.has<AABBCollider2D>() && ImGui::MenuItem("AABB Collider 2D")) {
+                history.execute(std::make_unique<LambdaCommand>("Add AABB Collider 2D",
+                    [entity]() { if (entity.is_alive()) entity.remove<AABBCollider2D>(); },
+                    [entity]() { if (entity.is_alive()) entity.add<AABBCollider2D>(); }));
+            }
+            if (!entity.has<CircleCollider2D>() && ImGui::MenuItem("Circle Collider 2D")) {
+                history.execute(std::make_unique<LambdaCommand>("Add Circle Collider 2D",
+                    [entity]() { if (entity.is_alive()) entity.remove<CircleCollider2D>(); },
+                    [entity]() { if (entity.is_alive()) entity.add<CircleCollider2D>(); }));
+            }
+            if (!entity.has<Camera2D>() && ImGui::MenuItem("Camera 2D")) {
+                const bool hadPosition = entity.has<Position2D>();
+                history.execute(std::make_unique<LambdaCommand>("Add Camera 2D",
+                    [entity, hadPosition]() {
+                        if (!entity.is_alive()) return;
+                        entity.remove<Camera2D>();
+                        if (!hadPosition) entity.remove<Position2D>();
+                    },
+                    [entity]() {
+                        if (!entity.is_alive()) return;
+                        if (!entity.has<Position2D>()) entity.set<Position2D>({0.0f, 0.0f});
+                        entity.set<Camera2D>({});
+                    }));
             }
             
             ImGui::Separator();

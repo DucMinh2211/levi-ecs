@@ -2,10 +2,33 @@
 #include "Levi/Components.h"
 #include "Levi/Math.h"
 #include "Levi/SystemManager.h"
+#include "Levi/Input.h"
+#include "Levi/Physics2D.h"
+#include "Levi/Camera2D.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <sstream>
+
+namespace {
+
+    void writeTextFileIfChanged(const std::filesystem::path& path, const std::string& content) {
+        std::ifstream currentFile(path, std::ios::binary);
+        if (currentFile) {
+            std::ostringstream current;
+            current << currentFile.rdbuf();
+            if (current.str() == content) return;
+        }
+
+        std::filesystem::create_directories(path.parent_path());
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        if (!output) throw std::runtime_error("Cannot write " + path.string());
+        output << content;
+        if (!output) throw std::runtime_error("Failed while writing " + path.string());
+    }
+
+}
 
 namespace Levi {
 
@@ -22,8 +45,8 @@ namespace Levi {
             shutdown();
         }
 
-        projectPath_ = projectPath;
-        scriptsFolder_ = projectPath; 
+        projectPath_ = std::filesystem::path(projectPath).lexically_normal().string();
+        scriptsFolder_ = (std::filesystem::path(projectPath_) / "scripts").string();
         world_ = world;
 
         if (!world_) return false;
@@ -32,13 +55,18 @@ namespace Levi {
             lua_ = sol::state();
             lua_.open_libraries(sol::lib::base, sol::lib::package, sol::lib::math, sol::lib::string, sol::lib::table);
 
-            // Set package.path to include the project root for require support
+            // Resolve modules relative to both the project root and scripts folder.
             std::string path = lua_["package"]["path"];
-            path += ";" + projectPath_ + "/?.lua";
-            path += ";" + projectPath_ + "/?/init.lua";
+            const std::string projectLuaPath = std::filesystem::path(projectPath_).generic_string();
+            const std::string scriptsLuaPath = std::filesystem::path(scriptsFolder_).generic_string();
+            path += ";" + projectLuaPath + "/?.lua";
+            path += ";" + projectLuaPath + "/?/init.lua";
+            path += ";" + scriptsLuaPath + "/?.lua";
+            path += ";" + scriptsLuaPath + "/?/init.lua";
             lua_["package"]["path"] = path;
 
             bindECS(world_);
+            exportAPIDefinitions();
             
             initialized_ = true;
             std::cout << "[LuaScriptManager] Lua VM initialized for project: " << projectPath << std::endl;
@@ -69,6 +97,13 @@ namespace Levi {
         );
         lua_.new_usertype<Vector2>("Vector2", "x", &Vector2::x, "y", &Vector2::y);
         lua_.new_usertype<Sprite2D>("Sprite2D", "texturePath", &Sprite2D::texturePath, "size", &Sprite2D::size);
+        lua_.new_usertype<AABBCollider2D>("AABBCollider2D", "size", &AABBCollider2D::size, "offset", &AABBCollider2D::offset);
+        lua_.new_usertype<CircleCollider2D>("CircleCollider2D", "radius", &CircleCollider2D::radius, "offset", &CircleCollider2D::offset);
+        lua_.new_usertype<Camera2D>("Camera2D",
+            "zoom", &Camera2D::zoom,
+            "active", &Camera2D::active,
+            "maxShakeOffset", &Camera2D::maxShakeOffset,
+            "maxShakeRotation", &Camera2D::maxShakeRotation);
 
         auto ecs = lua_.create_table();
 
@@ -152,6 +187,28 @@ namespace Levi {
             return sol::nullopt;
         };
 
+        ecs["addAABBCollider"] = [world](uint64_t id, float width, float height) {
+            auto entity = world->entity(id);
+            if (entity.is_alive()) entity.set<AABBCollider2D>({{width, height}, {0.0f, 0.0f}});
+        };
+        ecs["addCircleCollider"] = [world](uint64_t id, float radius) {
+            auto entity = world->entity(id);
+            if (entity.is_alive()) entity.set<CircleCollider2D>({radius, {0.0f, 0.0f}});
+        };
+        ecs["addCamera"] = [world](uint64_t id, sol::optional<float> zoom) {
+            auto entity = world->entity(id);
+            if (!entity.is_alive()) return;
+            if (!entity.has<Position2D>()) entity.set<Position2D>({0.0f, 0.0f});
+            Camera2D camera;
+            camera.zoom = Camera2DSystem::clampZoom(zoom.value_or(1.0f));
+            entity.set<Camera2D>(camera);
+        };
+        ecs["getCamera"] = [world](uint64_t id) -> sol::optional<Camera2D> {
+            auto entity = world->entity(id);
+            if (entity.is_alive() && entity.has<Camera2D>()) return *entity.get<Camera2D>();
+            return sol::nullopt;
+        };
+
         // --- Dynamic Script Components (ECS Abstraction Phase 1) ---
 
         ecs["AssetPath"] = [this](std::string path) -> sol::table {
@@ -161,7 +218,7 @@ namespace Levi {
             return t;
         };
 
-        ecs["defineComponent"] = [](std::string name, sol::table defaultValues) {
+        ecs["defineComponent"] = [world](std::string name, sol::table defaultValues) {
             ScriptComponentSchema schema;
             schema.name = name;
             
@@ -185,6 +242,7 @@ namespace Levi {
             }
             
             ScriptComponentRegistry::getInstance().registerSchema(schema);
+            world->entity(name.c_str()).add<ScriptComponentSchemaTag>();
             std::cout << "[Lua] Defined Component: " << name << " with " << schema.fields.size() << " fields." << std::endl;
         };
 
@@ -258,6 +316,62 @@ namespace Levi {
         };
 
         lua_["ECS"] = ecs;
+
+        auto input = lua_.create_table();
+        input["isKeyDown"] = [](const std::string& key) { return Input::instance().isKeyDown(key); };
+        input["isKeyPressed"] = [](const std::string& key) { return Input::instance().isKeyPressed(key); };
+        input["isKeyReleased"] = [](const std::string& key) { return Input::instance().isKeyReleased(key); };
+        input["isMouseButtonDown"] = [](int button) { return Input::instance().isMouseButtonDown(button); };
+        input["isMouseButtonPressed"] = [](int button) { return Input::instance().isMouseButtonPressed(button); };
+        input["getMousePosition"] = [this]() {
+            sol::table result = lua_.create_table();
+            result["x"] = Input::instance().mouseX();
+            result["y"] = Input::instance().mouseY();
+            return result;
+        };
+        lua_["Input"] = input;
+
+        auto physics = lua_.create_table();
+        physics["overlaps"] = [world](uint64_t first, uint64_t second) {
+            return Physics2D::overlaps(world->entity(first), world->entity(second));
+        };
+        physics["overlapsAABB"] = &Physics2D::overlapsAABB;
+        physics["overlapsCircle"] = &Physics2D::overlapsCircle;
+        lua_["Physics"] = physics;
+
+        auto cameraApi = lua_.create_table();
+        cameraApi["getActive"] = [world]() -> sol::optional<uint64_t> {
+            auto entity = Camera2DSystem::findActive(*world);
+            return entity ? sol::optional<uint64_t>(entity.id()) : sol::nullopt;
+        };
+        cameraApi["setActive"] = [world](uint64_t id) {
+            auto entity = world->entity(id);
+            if (!entity.is_alive() || !entity.has<Camera2D>() || !entity.has<Position2D>()) return false;
+            Camera2DSystem::setActive(*world, id);
+            return true;
+        };
+        cameraApi["move"] = [world](float x, float y) { return Camera2DSystem::move(*world, x, y); };
+        cameraApi["setPosition"] = [world](float x, float y) { return Camera2DSystem::setPosition(*world, x, y); };
+        cameraApi["setZoom"] = [world](float zoom) { return Camera2DSystem::setZoom(*world, zoom); };
+        cameraApi["getZoom"] = [world]() { return Camera2DSystem::getZoom(*world); };
+        cameraApi["shake"] = [world](float intensity, float duration) {
+            return Camera2DSystem::shake(*world, intensity, duration);
+        };
+        lua_["Camera"] = cameraApi;
+
+        auto scene = lua_.create_table();
+        scene["load"] = [this](const std::string& path) {
+            if (!runtimeActive_ || path.empty()) return false;
+            pendingScenePath_ = path;
+            return true;
+        };
+        scene["reload"] = [this]() {
+            if (!runtimeActive_ || currentScenePath_.empty()) return false;
+            pendingScenePath_ = currentScenePath_;
+            return true;
+        };
+        scene["current"] = [this]() { return currentScenePath_; };
+        lua_["Scene"] = scene;
     }
 
     void LuaScriptManager::shutdown() {
@@ -265,18 +379,18 @@ namespace Levi {
 
         std::cout << "[LuaScriptManager] Shutting down Lua VM..." << std::endl;
 
+        if (runtimeActive_) stopRuntime();
+
         // Lua systems keep protected_function references into this VM. Release
         // them before any script environments or the Lua state are destroyed.
         // Keeping this cleanup here also makes project reloads and direct use of
         // LuaScriptManager safe without relying on EngineCore's call order.
         SystemManager::getInstance().clear();
 
-        // 1. Dọn dẹp entities của các script trước
+        // Clean up entities created at script top-level as well. Runtime
+        // entities have already been removed by stopRuntime().
         if (world_) {
             for (auto& scriptInfoPtr : scripts_) {
-                if (scriptInfoPtr->loaded && scriptInfoPtr->onShutdown.valid()) {
-                    try { scriptInfoPtr->onShutdown(); } catch(...) {}
-                }
                 for (uint64_t id : scriptInfoPtr->createdEntities) {
                     auto e = world_->entity(id);
                     if (e.is_alive()) e.destruct();
@@ -295,6 +409,10 @@ namespace Levi {
         scripts_.clear();
         
         lua_["ECS"] = sol::nil;
+        lua_["Input"] = sol::nil;
+        lua_["Physics"] = sol::nil;
+        lua_["Camera"] = sol::nil;
+        lua_["Scene"] = sol::nil;
         lua_["entities"] = sol::nil;
 
         // 3. Ép kiểu hủy máy ảo Lua
@@ -306,6 +424,9 @@ namespace Levi {
         world_ = nullptr;
         ScriptComponentRegistry::getInstance().clear();
         initialized_ = false;
+        runtimeActive_ = false;
+        pendingScenePath_.reset();
+        currentScenePath_.clear();
         std::cout << "[LuaScriptManager] Shutdown successful." << std::endl;
     }
 
@@ -355,7 +476,13 @@ namespace Levi {
 
         std::cout << "[LuaScriptManager] Reloading: " << scriptPath << std::endl;
 
-        if (info->loaded && info->onShutdown.valid()) { try { info->onShutdown(); } catch(...) {} }
+        if (runtimeActive_ && info->loaded && info->onShutdown.valid()) {
+            auto result = info->onShutdown();
+            if (!result.valid()) {
+                sol::error err = result;
+                std::cerr << "[Lua] Error in onShutdown before reload: " << err.what() << std::endl;
+            }
+        }
 
         if (world_) {
             for (uint64_t id : info->createdEntities) {
@@ -366,7 +493,7 @@ namespace Levi {
         }
 
         if (loadScript(scriptPath)) {
-            if (info->onInit.valid()) {
+            if (runtimeActive_ && info->onInit.valid()) {
                 auto res = info->onInit();
                 if (!res.valid()) {
                     sol::error err = res;
@@ -403,16 +530,54 @@ namespace Levi {
         if (!initialized_) return false;
         scanScriptsFolder();
         for (auto& s : scripts_) loadScript(s->path);
-        for (auto& s : scripts_) {
-            if (s->loaded && s->onInit.valid()) {
-                auto res = s->onInit();
-                if (!res.valid()) {
-                    sol::error err = res;
-                    std::cerr << "[Lua] Error in onInit: " << err.what() << std::endl;
+        return true;
+    }
+
+    void LuaScriptManager::startRuntime() {
+        if (!initialized_ || runtimeActive_) return;
+
+        const bool deferred = world_ && world_->is_deferred();
+        if (deferred) world_->defer_suspend();
+
+        pendingScenePath_.reset();
+        runtimeActive_ = true;
+        callFunction("onInit");
+        callFunction("onPlay");
+
+        if (deferred) world_->defer_resume();
+    }
+
+    void LuaScriptManager::stopRuntime() {
+        if (!initialized_ || !runtimeActive_) return;
+
+        const bool deferred = world_ && world_->is_deferred();
+        if (deferred) world_->defer_suspend();
+
+        callFunction("onStop");
+        callFunction("onShutdown");
+        if (world_) {
+            for (auto& script : scripts_) {
+                for (uint64_t id : script->createdEntities) {
+                    auto entity = world_->entity(id);
+                    if (entity.is_alive()) entity.destruct();
                 }
+                script->createdEntities.clear();
             }
         }
-        return true;
+        runtimeActive_ = false;
+        pendingScenePath_.reset();
+
+        if (deferred) world_->defer_resume();
+    }
+
+    std::optional<std::string> LuaScriptManager::takePendingSceneLoad() {
+        auto request = std::move(pendingScenePath_);
+        pendingScenePath_.reset();
+        return request;
+    }
+
+    void LuaScriptManager::forgetCreatedEntities() {
+        for (auto& script : scripts_) script->createdEntities.clear();
     }
 
     void LuaScriptManager::checkForChanges() {
@@ -428,6 +593,317 @@ namespace Levi {
     }
 
     void LuaScriptManager::exportAPIDefinitions() {
-        // LSP generation...
+        static const std::string projectConfig = R"json({
+    "runtime.version": "Lua 5.4",
+    "runtime.path": [
+        "?.lua",
+        "?/init.lua",
+        "scripts/?.lua",
+        "scripts/?/init.lua"
+    ],
+    "diagnostics.globals": [
+        "ECS",
+        "Input",
+        "Physics",
+        "Camera",
+        "Scene",
+        "PivotType",
+        "entities"
+    ],
+    "workspace.library": [
+        "scripts/levi-api"
+    ],
+    "workspace.checkThirdParty": false,
+    "completion.callSnippet": "Both",
+    "hint.enable": true,
+    "hint.setType": true
+}
+)json";
+
+        static const std::string scriptsConfig = R"json({
+    "runtime.version": "Lua 5.4",
+    "runtime.path": [
+        "?.lua",
+        "?/init.lua"
+    ],
+    "diagnostics.globals": [
+        "ECS",
+        "Input",
+        "Physics",
+        "Camera",
+        "Scene",
+        "PivotType",
+        "entities"
+    ],
+    "workspace.library": [
+        "levi-api"
+    ],
+    "workspace.checkThirdParty": false,
+    "completion.callSnippet": "Both",
+    "hint.enable": true,
+    "hint.setType": true
+}
+)json";
+
+        static const std::string apiDefinitions = R"lua(---@meta
+
+---@class Vector2
+---@field x number
+---@field y number
+
+---@class Position2D: Vector2
+---@class Scale2D: Vector2
+
+---@enum PivotType
+PivotType = {
+    Percent = 0,
+    Pixel = 1
+}
+
+---@class Rotation2D
+---@field angle number
+---@field pivot Vector2
+---@field pivotType PivotType
+
+---@class Sprite2D
+---@field texturePath string
+---@field size Vector2
+
+---@class AABBCollider2D
+---@field size Vector2
+---@field offset Vector2
+
+---@class CircleCollider2D
+---@field radius number
+---@field offset Vector2
+
+ECS = {}
+
+---@param name? string
+---@return integer id
+function ECS.createEntity(name) end
+
+---@param id integer
+function ECS.deleteEntity(id) end
+
+---@param id integer
+---@param x number
+---@param y number
+function ECS.addPosition(id, x, y) end
+
+---@param id integer
+---@param x number
+---@param y number
+function ECS.setPosition(id, x, y) end
+
+---@param id integer
+---@return Position2D?
+function ECS.getPosition(id) end
+
+---@param id integer
+---@param x number
+---@param y number
+function ECS.addScale(id, x, y) end
+
+---@param id integer
+---@param x number
+---@param y number
+function ECS.setScale(id, x, y) end
+
+---@param id integer
+---@return Scale2D?
+function ECS.getScale(id) end
+
+---@param id integer
+---@param angle number
+function ECS.addRotation(id, angle) end
+
+---@param id integer
+---@param angle number
+function ECS.setRotation(id, angle) end
+
+---@param id integer
+---@param x number
+---@param y number
+---@param pivotType PivotType
+function ECS.setRotationPivot(id, x, y, pivotType) end
+
+---@param id integer
+---@return Rotation2D?
+function ECS.getRotation(id) end
+
+---@param id integer
+---@param path string
+---@param width number
+---@param height number
+function ECS.addSprite(id, path, width, height) end
+
+---@param id integer
+---@return Sprite2D?
+function ECS.getSprite(id) end
+
+---@param id integer
+---@param width number
+---@param height number
+function ECS.addAABBCollider(id, width, height) end
+
+---@param id integer
+---@param radius number
+function ECS.addCircleCollider(id, radius) end
+
+---@param id integer
+---@param zoom? number
+function ECS.addCamera(id, zoom) end
+
+---@param id integer
+---@return Camera2D?
+function ECS.getCamera(id) end
+
+---@param path string
+---@return table
+function ECS.AssetPath(path) end
+
+---@param name string
+---@param defaultValues table
+function ECS.defineComponent(name, defaultValues) end
+
+---@param id integer
+---@param schemaName string
+function ECS.addComponent(id, schemaName) end
+
+---@param id integer
+---@param schemaName string
+---@param fieldName string
+---@param value any
+function ECS.setComponentValue(id, schemaName, fieldName, value) end
+
+---@param id integer
+---@param schemaName string
+---@param fieldName string
+---@return any
+function ECS.getComponentValue(id, schemaName, fieldName) end
+
+---@param name string
+---@param query string[]
+---@param callback fun(entityId: integer)
+function ECS.registerSystem(name, query, callback) end
+
+Input = {}
+
+---@param key string
+---@return boolean
+function Input.isKeyDown(key) end
+
+---@param key string
+---@return boolean
+function Input.isKeyPressed(key) end
+
+---@param key string
+---@return boolean
+function Input.isKeyReleased(key) end
+
+---@param button integer
+---@return boolean
+function Input.isMouseButtonDown(button) end
+
+---@param button integer
+---@return boolean
+function Input.isMouseButtonPressed(button) end
+
+---@return Vector2
+function Input.getMousePosition() end
+
+Physics = {}
+
+---@param first integer
+---@param second integer
+---@return boolean
+function Physics.overlaps(first, second) end
+
+---@param ax number
+---@param ay number
+---@param aw number
+---@param ah number
+---@param bx number
+---@param by number
+---@param bw number
+---@param bh number
+---@return boolean
+function Physics.overlapsAABB(ax, ay, aw, ah, bx, by, bw, bh) end
+
+---@param ax number
+---@param ay number
+---@param ar number
+---@param bx number
+---@param by number
+---@param br number
+---@return boolean
+function Physics.overlapsCircle(ax, ay, ar, bx, by, br) end
+
+Camera = {}
+
+---@return integer?
+function Camera.getActive() end
+
+---@param id integer
+---@return boolean
+function Camera.setActive(id) end
+
+---@param deltaX number
+---@param deltaY number
+---@return boolean
+function Camera.move(deltaX, deltaY) end
+
+---@param x number
+---@param y number
+---@return boolean
+function Camera.setPosition(x, y) end
+
+---@param zoom number
+---@return boolean
+function Camera.setZoom(zoom) end
+
+---@return number
+function Camera.getZoom() end
+
+---@param intensity number
+---@param duration number
+---@return boolean
+function Camera.shake(intensity, duration) end
+
+---@class Camera2D
+---@field zoom number
+---@field active boolean
+---@field maxShakeOffset number
+---@field maxShakeRotation number
+
+Scene = {}
+
+---Queue a scene switch at the end of the current simulation frame.
+---@param path string Project-relative .levscene.json or .levscene.bin path
+---@return boolean queued
+function Scene.load(path) end
+
+---Queue a reload of the active scene.
+---@return boolean queued
+function Scene.reload() end
+
+---Return the active scene path, relative to the project when possible.
+---@return string
+function Scene.current() end
+)lua";
+
+        try {
+            const std::filesystem::path projectRoot(projectPath_);
+            const std::filesystem::path scriptsRoot(scriptsFolder_);
+            writeTextFileIfChanged(projectRoot / ".luarc.json", projectConfig);
+            writeTextFileIfChanged(scriptsRoot / ".luarc.json", scriptsConfig);
+            writeTextFileIfChanged(scriptsRoot / "levi-api" / "ecs.lua", apiDefinitions);
+            std::cout << "[LuaScriptManager] LuaLS workspace files are ready in: "
+                      << scriptsRoot << std::endl;
+        } catch (const std::exception& e) {
+            lastError_ = e.what();
+            std::cerr << "[LuaScriptManager] LSP export warning: " << e.what() << std::endl;
+        }
     }
 }

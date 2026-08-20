@@ -8,6 +8,8 @@ add_executable(LeviEditor
     src/Inspector.h
     src/UndoRedoManager.cpp
     src/UndoRedoManager.h
+    src/DeleteEntityCommand.cpp
+    src/DeleteEntityCommand.h
 )
 
 target_include_directories(LeviEditor PRIVATE 

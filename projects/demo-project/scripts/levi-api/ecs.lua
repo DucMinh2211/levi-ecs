@@ -1,136 +1,11 @@
 ---@meta
 
-ECS = {}
-
----Create a new entity
----@param name? string Optional entity name
----@return integer id Entity ID
-function ECS.createEntity(name) end
-
----Delete an entity
----@param id integer Entity ID
-function ECS.deleteEntity(id) end
-
--- --- Position ---
-
----Add Position2D component to entity
----@param id integer Entity ID
----@param x number X coordinate
----@param y number Y coordinate
-function ECS.addPosition(id, x, y) end
-
----Set entity position
----@param id integer Entity ID
----@param x number X coordinate
----@param y number Y coordinate
-function ECS.setPosition(id, x, y) end
-
----Get entity position
----@param id integer Entity ID
----@return Position2D|nil
-function ECS.getPosition(id) end
-
--- --- Scale ---
-
----Add Scale2D component to entity
----@param id integer Entity ID
----@param x number Scale X
----@param y number Scale Y
-function ECS.addScale(id, x, y) end
-
----Set entity scale
----@param id integer Entity ID
----@param x number Scale X
----@param y number Scale Y
-function ECS.setScale(id, x, y) end
-
----Get entity scale
----@param id integer Entity ID
----@return Scale2D|nil
-function ECS.getScale(id) end
-
--- --- Rotation ---
-
----Add Rotation2D component to entity
----@param id integer Entity ID
----@param angle number Rotation angle in degrees
-function ECS.addRotation(id, angle) end
-
----Set entity rotation
----@param id integer Entity ID
----@param angle number Rotation angle in degrees
-function ECS.setRotation(id, angle) end
-
----Set rotation pivot
----@param id integer Entity ID
----@param x number Pivot X
----@param y number Pivot Y
----@param type PivotType Pivot type (Percent or Pixel)
-function ECS.setRotationPivot(id, x, y, type) end
-
----Get entity rotation
----@param id integer Entity ID
----@return Rotation2D|nil
-function ECS.getRotation(id) end
-
--- --- Sprite ---
-
----Add Sprite2D component to entity
----@param id integer Entity ID
----@param path string Texture path (relative to project root)
----@param width number Sprite width
----@param height number Sprite height
-function ECS.addSprite(id, path, width, height) end
-
----Get entity sprite
----@param id integer Entity ID
----@return Sprite2D|nil
-function ECS.getSprite(id) end
-
--- --- Dynamic Abstraction API (Phase 1 & 2) ---
-
----Mark a string as an asset path for the Inspector
----@param path string
----@return table
-function ECS.AssetPath(path) end
-
----Define a new component type with default values
----@param name string Component name
----@param defaultValues table Key-value pairs of default fields
-function ECS.defineComponent(name, defaultValues) end
-
----Add a defined script component to an entity
----@param id integer Entity ID
----@param schemaName string Name of the defined component
-function ECS.addComponent(id, schemaName) end
-
----Set a value in a script component
----@param id integer Entity ID
----@param schemaName string Component name
----@param fieldName string Field name
----@param value any Value to set
-function ECS.setComponentValue(id, schemaName, fieldName, value) end
-
----Get a value from a script component
----@param id integer Entity ID
----@param schemaName string Component name
----@param fieldName string Field name
----@return any
-function ECS.getComponentValue(id, schemaName, fieldName) end
-
----Register a new logic system
----@param name string System name
----@param query string[] List of required component names
----@param callback fun(entityId: integer) Function called for each matching entity
-function ECS.registerSystem(name, query, callback) end
-
-
 ---@class Vector2
 ---@field x number
 ---@field y number
 
----@class Position2D : Vector2
----@class Scale2D : Vector2
+---@class Position2D: Vector2
+---@class Scale2D: Vector2
 
 ---@enum PivotType
 PivotType = {
@@ -146,3 +21,226 @@ PivotType = {
 ---@class Sprite2D
 ---@field texturePath string
 ---@field size Vector2
+
+---@class AABBCollider2D
+---@field size Vector2
+---@field offset Vector2
+
+---@class CircleCollider2D
+---@field radius number
+---@field offset Vector2
+
+ECS = {}
+
+---@param name? string
+---@return integer id
+function ECS.createEntity(name) end
+
+---@param id integer
+function ECS.deleteEntity(id) end
+
+---@param id integer
+---@param x number
+---@param y number
+function ECS.addPosition(id, x, y) end
+
+---@param id integer
+---@param x number
+---@param y number
+function ECS.setPosition(id, x, y) end
+
+---@param id integer
+---@return Position2D?
+function ECS.getPosition(id) end
+
+---@param id integer
+---@param x number
+---@param y number
+function ECS.addScale(id, x, y) end
+
+---@param id integer
+---@param x number
+---@param y number
+function ECS.setScale(id, x, y) end
+
+---@param id integer
+---@return Scale2D?
+function ECS.getScale(id) end
+
+---@param id integer
+---@param angle number
+function ECS.addRotation(id, angle) end
+
+---@param id integer
+---@param angle number
+function ECS.setRotation(id, angle) end
+
+---@param id integer
+---@param x number
+---@param y number
+---@param pivotType PivotType
+function ECS.setRotationPivot(id, x, y, pivotType) end
+
+---@param id integer
+---@return Rotation2D?
+function ECS.getRotation(id) end
+
+---@param id integer
+---@param path string
+---@param width number
+---@param height number
+function ECS.addSprite(id, path, width, height) end
+
+---@param id integer
+---@return Sprite2D?
+function ECS.getSprite(id) end
+
+---@param id integer
+---@param width number
+---@param height number
+function ECS.addAABBCollider(id, width, height) end
+
+---@param id integer
+---@param radius number
+function ECS.addCircleCollider(id, radius) end
+
+---@param id integer
+---@param zoom? number
+function ECS.addCamera(id, zoom) end
+
+---@param id integer
+---@return Camera2D?
+function ECS.getCamera(id) end
+
+---@param path string
+---@return table
+function ECS.AssetPath(path) end
+
+---@param name string
+---@param defaultValues table
+function ECS.defineComponent(name, defaultValues) end
+
+---@param id integer
+---@param schemaName string
+function ECS.addComponent(id, schemaName) end
+
+---@param id integer
+---@param schemaName string
+---@param fieldName string
+---@param value any
+function ECS.setComponentValue(id, schemaName, fieldName, value) end
+
+---@param id integer
+---@param schemaName string
+---@param fieldName string
+---@return any
+function ECS.getComponentValue(id, schemaName, fieldName) end
+
+---@param name string
+---@param query string[]
+---@param callback fun(entityId: integer)
+function ECS.registerSystem(name, query, callback) end
+
+Input = {}
+
+---@param key string
+---@return boolean
+function Input.isKeyDown(key) end
+
+---@param key string
+---@return boolean
+function Input.isKeyPressed(key) end
+
+---@param key string
+---@return boolean
+function Input.isKeyReleased(key) end
+
+---@param button integer
+---@return boolean
+function Input.isMouseButtonDown(button) end
+
+---@param button integer
+---@return boolean
+function Input.isMouseButtonPressed(button) end
+
+---@return Vector2
+function Input.getMousePosition() end
+
+Physics = {}
+
+---@param first integer
+---@param second integer
+---@return boolean
+function Physics.overlaps(first, second) end
+
+---@param ax number
+---@param ay number
+---@param aw number
+---@param ah number
+---@param bx number
+---@param by number
+---@param bw number
+---@param bh number
+---@return boolean
+function Physics.overlapsAABB(ax, ay, aw, ah, bx, by, bw, bh) end
+
+---@param ax number
+---@param ay number
+---@param ar number
+---@param bx number
+---@param by number
+---@param br number
+---@return boolean
+function Physics.overlapsCircle(ax, ay, ar, bx, by, br) end
+
+Camera = {}
+
+---@return integer?
+function Camera.getActive() end
+
+---@param id integer
+---@return boolean
+function Camera.setActive(id) end
+
+---@param deltaX number
+---@param deltaY number
+---@return boolean
+function Camera.move(deltaX, deltaY) end
+
+---@param x number
+---@param y number
+---@return boolean
+function Camera.setPosition(x, y) end
+
+---@param zoom number
+---@return boolean
+function Camera.setZoom(zoom) end
+
+---@return number
+function Camera.getZoom() end
+
+---@param intensity number
+---@param duration number
+---@return boolean
+function Camera.shake(intensity, duration) end
+
+---@class Camera2D
+---@field zoom number
+---@field active boolean
+---@field maxShakeOffset number
+---@field maxShakeRotation number
+
+Scene = {}
+
+---Queue a scene switch at the end of the current simulation frame.
+---@param path string Project-relative .levscene.json or .levscene.bin path
+---@return boolean queued
+function Scene.load(path) end
+
+---Queue a reload of the active scene.
+---@return boolean queued
+function Scene.reload() end
+
+---Return the active scene path, relative to the project when possible.
+---@return string
+function Scene.current() end

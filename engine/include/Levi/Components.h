@@ -41,6 +41,32 @@ namespace Levi {
         // int layer = 0; (Render depth)
     };
 
+    struct AABBCollider2D {
+        Vector2 size = { 64.0f, 64.0f };
+        Vector2 offset = { 0.0f, 0.0f };
+    };
+
+    struct CircleCollider2D {
+        float radius = 32.0f;
+        Vector2 offset = { 0.0f, 0.0f };
+    };
+
+    struct Camera2D {
+        float zoom = 1.0f;
+        bool active = true;
+        float maxShakeOffset = 12.0f;
+        float maxShakeRotation = 2.0f;
+
+        // Runtime-only shake state. Scene persistence intentionally stores
+        // only the configuration above.
+        float shakeIntensity = 0.0f;
+        float shakeDuration = 0.0f;
+        float shakeRemaining = 0.0f;
+        float shakeClock = 0.0f;
+        Vector2 shakeOffset = { 0.0f, 0.0f };
+        float shakeRotation = 0.0f;
+    };
+
     // --- (Future suggestions) ---
     // struct Position3D : public Vector3 { ... };
 }

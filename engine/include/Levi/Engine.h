@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <filesystem>
 #include <flecs.h>
 #include <functional>
 #include "Components.h"
@@ -13,6 +14,8 @@ struct SDL_Renderer;
 struct SDL_Texture;
 
 namespace Levi {
+    enum class PlayState { Edit, Playing, Paused };
+
     struct EngineConfig {
         std::string WindowTitle = "Levi Engine";
         int WindowWidth = 1280;
@@ -36,6 +39,15 @@ namespace Levi {
         // Project management
         bool loadProject(const std::string& projectPath);
         void unloadProject();
+        bool loadScene(const std::filesystem::path& scenePath, std::string* error = nullptr);
+        void setCurrentScenePath(const std::filesystem::path& scenePath);
+        const std::filesystem::path& getCurrentScenePath() const { return currentScenePath_; }
+
+        void play();
+        void pause();
+        void resume();
+        void stop();
+        PlayState getPlayState() const { return playState_; }
 
         // Getters
         flecs::world& getWorld() { return world_; }
@@ -49,10 +61,16 @@ namespace Levi {
     private:
         void setupSystems(); // Initializes ECS Systems
         void executeLuaSystems(); // Executes Lua-defined systems
+        void processPendingSceneLoad();
         void createViewportTexture(int width, int height);
 
         bool isRunning_;
         bool firstFrame_ = true;
+        PlayState playState_ = PlayState::Edit;
+        std::string editSceneSnapshot_;
+        std::filesystem::path projectPath_;
+        std::filesystem::path currentScenePath_;
+        std::filesystem::path editScenePathSnapshot_;
         SDL_Window* window_;
         SDL_Renderer* renderer_;
         SDL_Texture* viewportTexture_; // "Virtual screen" for Render to Texture

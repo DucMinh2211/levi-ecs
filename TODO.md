@@ -4,17 +4,20 @@ Progress tracking for the Levi-ECS project, categorized by implementation status
 
 ## 🔴 Critical Issues (High Priority)
 - [x] **Fix Engine Shutdown Crash:** Lua callbacks/environments are released before the Lua VM, and the Lua manager is destroyed before the Flecs world. Covered by a shutdown/re-init lifecycle test.
-- [ ] **Undo/Redo System:** Essential for editor productivity (tracking Inspector/Hierarchy changes).
+- [x] **Undo/Redo System:** Essential for editor productivity (tracking Inspector/Hierarchy changes).
     - [x] Command history core with bounded undo/redo stacks and redo invalidation.
     - [x] Editor menu and `Ctrl+Z` / `Ctrl+Y` shortcuts.
     - [x] Inspector edits for built-in and Lua components, rename, and add-component actions.
     - [x] Hierarchy create entity/create child actions.
-    - [ ] Snapshot and restore deleted entity subtrees.
+    - [x] Snapshot and restore deleted entity subtrees, including hierarchy, built-in components, and Lua component values.
 
-## 📊 Current Status (2026-08-19)
+## 📊 Current Status (2026-08-20)
 - [x] Windows CMake/Ninja build restored; Objective-C is now enabled only on macOS.
-- [x] Automated lifecycle and undo/redo core tests added and passing.
-- [ ] Current focus: finish hierarchy deletion support, then complete the Undo/Redo milestone.
+- [x] Automated lifecycle, undo/redo core, and hierarchy deletion tests added and passing.
+- [x] Undo/Redo milestone completed, including deletion and restoration of entity subtrees.
+- [x] Short-term feature polish completed: scene persistence, play controls, ECS modules, asset thumbnails/drag-drop, Lua input, and base collision APIs.
+- [x] 2D Camera completed across rendering, Lua, Inspector, persistence, and automated tests.
+- [ ] Next focus: full Box2D-backed 2D Physics.
 
 ## ✅ 1. Completed (Core Foundation & Stability)
 - [x] **Engine Core Initialization:** SDL3 Integration (Windowing & Renderer).
@@ -33,20 +36,23 @@ Progress tracking for the Levi-ECS project, categorized by implementation status
 - [x] **Asset Manager:** Singleton to manage loading/unloading of `SDL_Texture`.
 
 ## 🛠️ 2. Short-term (Feature Polish)
-- [ ] **Scene Persistence:**
-    - [ ] **JSON/YAML Export:** For human-readable scene editing.
-    - [ ] **Binary Export:** For optimized, fast-loading production data.
-- [ ] **Editor Play/Pause/Stop Mode:** 
-    - [ ] Control `world.progress()` and Lua updates from the Editor UI.
-    - [ ] Reset scene state when stopping.
-- [ ] **Modular C++ ECS Modules:** Refactor core systems (Render, Transform) into reusable Flecs modules (`world.import<T>`).
-- [ ] **Asset Browser Improvements:** Better UI for browsing textures/sounds (thumbnails, drag-and-drop into Inspector).
-- [ ] **Lua API Expansion:** 
-    - [ ] **Input:** Wrapper for Keyboard/Mouse (exposed to Lua).
-    - [ ] **Physics Base:** Simple AABB or Circle collision API.
+- [x] **Scene Persistence:**
+    - [x] **JSON Export:** Human-readable, versioned scene save/load.
+    - [x] **Binary Export:** Compact, versioned scene save/load for production data.
+- [x] **Editor Play/Pause/Stop Mode:**
+    - [x] Control simulation time and Lua updates from the Editor UI.
+    - [x] Snapshot edit state on Play and restore it on Stop.
+- [x] **Modular C++ ECS Modules:** Render and Transform are reusable Flecs modules (`world.import<T>`).
+- [x] **Asset Browser Improvements:** Texture thumbnails, file grid, and asset-path drag-and-drop into Inspector.
+- [x] **Lua API Expansion:**
+    - [x] **Input:** Keyboard and mouse state/edge wrappers exposed to Lua.
+    - [x] **Physics Base:** AABB and Circle collider components and overlap API.
 
 ## ⏳ 3. Mid-term (Advanced Systems)
-- [ ] **2D Camera:** Support for movement, zooming, and screen shake.
+- [x] **2D Camera:**
+    - [x] Active-camera world-to-screen rendering with movement and zoom.
+    - [x] Time-decaying positional and rotational screen shake.
+    - [x] Lua API, Inspector/Undo support, and JSON/binary persistence.
 - [ ] **2D Physics:** Full Box2D integration for collisions and gravity.
 - [ ] **Animation System:** Support for Sprite Sheets and frame-based animations.
 - [ ] **Tilemap Editor:** Grid-based mapping tool directly inside the Editor.

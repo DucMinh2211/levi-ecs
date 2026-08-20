@@ -199,6 +199,109 @@ If you prefer not to use the helper scripts:
 
 ---
 
+## 🎮 Editor workflow and runtime APIs
+
+The editor now saves the active scene to `scenes/main.levscene.json`, can export
+`scenes/main.levscene.bin`, and provides Play/Pause/Resume/Stop controls. Stop
+restores the exact edit-time scene snapshot, so runtime changes are discarded.
+Use Save Scene As (`Ctrl+Shift+S`) to name a JSON scene and Load Scene
+(`Ctrl+L`) to choose a JSON or binary scene. After a scene is saved or loaded,
+`Ctrl+S` writes back to that active file. Scene files load with one click in
+the Project Explorer tree, or with a double-click in its file grid.
+Lua files and component schemas are prepared in Edit mode, while `onInit` runs
+when Play starts. Stop calls `onStop`/`onShutdown`, removes entities created by
+scripts during the run, and then restores the edit-time snapshot.
+
+Assets can be dragged from the Project Explorer into Sprite or Lua `AssetPath`
+fields in the Inspector. Image assets display cached thumbnails.
+
+Lua scripts can read input and run basic collision checks:
+
+```lua
+function onUpdate(deltaTime)
+    if Input.isKeyDown("W") then
+        -- Move an entity using ECS.getPosition / ECS.setPosition.
+    end
+
+    local mouse = Input.getMousePosition()
+    local touching = Physics.overlaps(player, enemy)
+end
+
+-- Collider setup
+ECS.addAABBCollider(player, 64, 64)
+ECS.addCircleCollider(enemy, 24)
+```
+
+### Lua language server
+
+Loading a project regenerates LuaLS metadata in both the project root and its
+`scripts` directory. You can therefore open either folder in a code editor with
+the Lua Language Server installed and get completion/diagnostics for `ECS`,
+`Input`, `Physics`, and Levi component types. The generated definitions live in
+`scripts/levi-api`; they are metadata only and are not loaded by the game.
+
+Levi Editor currently opens `.lua` files in the system's external code editor;
+the embedded Project Explorer is not itself a text editor or LSP client.
+
+Input exposes `isKeyDown`, `isKeyPressed`, `isKeyReleased`,
+`isMouseButtonDown`, `isMouseButtonPressed`, and `getMousePosition`.
+Physics exposes entity `overlaps`, numeric `overlapsAABB`, and
+`overlapsCircle` helpers.
+
+Runtime scene changes are queued until the current Lua/Flecs update has
+finished, so they are safe to request from `onUpdate` or a Lua system:
+
+```lua
+if levelComplete then
+    Scene.load("scenes/level_2.levscene.json")
+end
+
+function onSceneUnload(previousPath)
+    print("Leaving " .. previousPath)
+end
+
+function onSceneLoaded(newPath)
+    print("Entered " .. newPath)
+end
+
+function onSceneLoadFailed(path, message)
+    print("Could not load " .. path .. ": " .. message)
+end
+```
+
+`Scene.current()` returns the active project-relative path and
+`Scene.reload()` queues it again. Runtime paths must stay inside the active
+project. Stopping Play still restores the scene and active path captured when
+Play began.
+
+### 2D camera
+
+Add `Position2D` and `Camera2D` to an entity from the Inspector, or create one
+from Lua. An active camera treats its position as the world point at the center
+of the viewport. Without an active camera, rendering keeps the original
+screen-space behavior.
+
+```lua
+local camera = ECS.createEntity("MainCamera")
+ECS.addPosition(camera, 0, 0)
+ECS.addCamera(camera, 1.0)
+Camera.setActive(camera)
+
+function onUpdate(dt)
+    local speed = 300 * dt
+    if Input.isKeyDown("A") then Camera.move(-speed, 0) end
+    if Input.isKeyDown("D") then Camera.move(speed, 0) end
+end
+
+-- Intensity and duration in seconds.
+Camera.shake(1.0, 0.35)
+Camera.setZoom(2.0)
+```
+
+`Camera.getActive`, `Camera.setPosition`, `Camera.getZoom`, and
+`ECS.getCamera` are also available. Shake runtime state is intentionally not
+saved; scene files persist zoom, active state, and maximum shake offset/angle.
+
 ## 📂 Project Structure
 *   **`engine/`**: Core engine logic (ECS, Rendering, Assets, Lua integration).
 *   **`editor/`**: Studio GUI and developer tools (Inspector, Hierarchy).

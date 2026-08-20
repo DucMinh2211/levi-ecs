@@ -6,6 +6,7 @@
 #include <nfd.hpp>
 
 #include "Levi/Engine.h"
+#include "Levi/SceneSerializer.h"
 #include "ProjectExplorer.h"
 #include "SceneHierarchy.h"
 #include "Inspector.h"
@@ -52,10 +53,107 @@ int main(int argc, char* argv[]) {
         // Load Lua scripts for project
         engine.loadProject(projectExplorer.getProjectPath());
 
-        // Lua scripts will create entities via onInit()
-        // No need to manually create test entities here anymore
+        // Script files are loaded here so schemas and systems are available in
+        // Edit mode. Runtime onInit() is deferred until the user presses Play.
 
         static bool resetLayout = false;
+        std::filesystem::path activeScenePath;
+
+        auto saveSceneToPath = [&](std::filesystem::path scenePath) {
+            const std::string filename = scenePath.filename().string();
+            const bool binary = filename.ends_with(".levscene.bin");
+            if (!binary && !filename.ends_with(".levscene.json")) {
+                if (scenePath.extension() == ".json") scenePath.replace_extension();
+                scenePath += ".levscene.json";
+            }
+
+            std::string error;
+            const bool saved = binary
+                ? Levi::SceneSerializer::saveBinary(engine.getWorld(), scenePath, &error)
+                : Levi::SceneSerializer::saveJson(engine.getWorld(), scenePath, &error);
+            if (saved) {
+                activeScenePath = scenePath;
+                engine.setCurrentScenePath(scenePath);
+                std::cout << "[Editor] Scene saved: " << scenePath << std::endl;
+                return true;
+            }
+            std::cerr << "[Editor] Save failed: " << error << std::endl;
+            return false;
+        };
+
+        auto saveSceneAsJson = [&]() {
+            if (engine.getPlayState() != Levi::PlayState::Edit) {
+                std::cerr << "[Editor] Stop Play mode before saving a scene." << std::endl;
+                return false;
+            }
+
+            const auto scenesDir = std::filesystem::path(projectExplorer.getProjectPath()) / "scenes";
+            std::filesystem::create_directories(scenesDir);
+            const nfdfilteritem_t filters[] = {{"Levi JSON Scene", "levscene.json"}};
+            nfdchar_t* outPath = nullptr;
+            const nfdresult_t result = NFD_SaveDialog(
+                &outPath, filters, 1, scenesDir.string().c_str(), "main.levscene.json");
+            if (result == NFD_OKAY) {
+                const std::filesystem::path chosenPath(outPath);
+                NFD_FreePath(outPath);
+                return saveSceneToPath(chosenPath);
+            }
+            if (result == NFD_ERROR) std::cerr << "[Editor] Save dialog failed: " << NFD_GetError() << std::endl;
+            return false;
+        };
+
+        auto saveCurrentScene = [&]() {
+            if (activeScenePath.empty()) return saveSceneAsJson();
+            if (engine.getPlayState() != Levi::PlayState::Edit) {
+                std::cerr << "[Editor] Stop Play mode before saving a scene." << std::endl;
+                return false;
+            }
+            return saveSceneToPath(activeScenePath);
+        };
+
+        auto loadScenePath = [&](const std::filesystem::path& scenePath) {
+            const std::string filename = scenePath.filename().string();
+            const bool json = filename.ends_with(".levscene.json");
+            const bool binary = filename.ends_with(".levscene.bin");
+            if (!json && !binary) return false;
+            if (engine.getPlayState() != Levi::PlayState::Edit) {
+                std::cerr << "[Editor] Stop Play mode before loading a scene." << std::endl;
+                return true;
+            }
+
+            std::string error;
+            const bool loaded = engine.loadScene(scenePath, &error);
+            if (!loaded) {
+                std::cerr << "[Editor] Load failed: " << error << std::endl;
+                return true;
+            }
+
+            activeScenePath = scenePath;
+            undoRedo.clear();
+            sceneHierarchy.setSelectedEntity(flecs::entity::null());
+            std::cout << "[Editor] Scene loaded: " << scenePath << std::endl;
+            return true;
+        };
+
+        auto showLoadSceneDialog = [&]() {
+            if (engine.getPlayState() != Levi::PlayState::Edit) {
+                std::cerr << "[Editor] Stop Play mode before loading a scene." << std::endl;
+                return;
+            }
+
+            const auto scenesDir = std::filesystem::path(projectExplorer.getProjectPath()) / "scenes";
+            std::filesystem::create_directories(scenesDir);
+            const nfdfilteritem_t filters[] = {{"Levi Scene", "levscene.json,levscene.bin"}};
+            nfdchar_t* outPath = nullptr;
+            const nfdresult_t result = NFD_OpenDialog(&outPath, filters, 1, scenesDir.string().c_str());
+            if (result == NFD_OKAY) {
+                const std::filesystem::path chosenPath(outPath);
+                NFD_FreePath(outPath);
+                loadScenePath(chosenPath);
+            } else if (result == NFD_ERROR) {
+                std::cerr << "[Editor] Load dialog failed: " << NFD_GetError() << std::endl;
+            }
+        };
 
         engine.run([&]() {
             // --- 0. Setup Default Layout (Godot style) ---
@@ -113,13 +211,25 @@ int main(int argc, char* argv[]) {
                             // Reload Lua scripts for new project
                             undoRedo.clear();
                             engine.loadProject(outPath);
+                            activeScenePath.clear();
+                            sceneHierarchy.setSelectedEntity(flecs::entity::null());
                             
                             NFD_FreePath(outPath);
                         }
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem("Save Project", "Ctrl+S")) {
-                        std::cout << "[Editor] Project Saved." << std::endl;
+                    const bool canEditScene = engine.getPlayState() == Levi::PlayState::Edit;
+                    if (ImGui::MenuItem("Save Scene", "Ctrl+S", false, canEditScene)) saveCurrentScene();
+                    if (ImGui::MenuItem("Save Scene As...", "Ctrl+Shift+S", false, canEditScene)) saveSceneAsJson();
+                    if (ImGui::MenuItem("Load Scene...", "Ctrl+L", false, canEditScene)) showLoadSceneDialog();
+                    if (ImGui::MenuItem("Export Scene (Binary)")) {
+                        std::string error;
+                        const auto scenePath = std::filesystem::path(projectExplorer.getProjectPath()) / "scenes" / "main.levscene.bin";
+                        if (!Levi::SceneSerializer::saveBinary(engine.getWorld(), scenePath, &error)) {
+                            std::cerr << "[Editor] Binary export failed: " << error << std::endl;
+                        } else {
+                            std::cout << "[Editor] Binary scene exported: " << scenePath << std::endl;
+                        }
                     }
                     ImGui::EndMenu();
                 }
@@ -150,7 +260,34 @@ int main(int argc, char* argv[]) {
                 ImGui::EndMainMenuBar();
             }
 
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetMainViewport()->GetCenter().x - 110.0f, 24.0f), ImGuiCond_Always);
+            ImGui::SetNextWindowBgAlpha(0.85f);
+            ImGui::Begin("Play Controls", nullptr,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
+            const auto playState = engine.getPlayState();
+            if (playState == Levi::PlayState::Edit) {
+                if (ImGui::Button("Play")) { undoRedo.clear(); engine.play(); }
+            } else {
+                if (playState == Levi::PlayState::Playing) {
+                    if (ImGui::Button("Pause")) engine.pause();
+                } else if (ImGui::Button("Resume")) {
+                    engine.resume();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Stop")) {
+                    engine.stop();
+                    undoRedo.clear();
+                    sceneHierarchy.setSelectedEntity(flecs::entity::null());
+                }
+            }
+            ImGui::End();
+
             ImGuiIO& io = ImGui::GetIO();
+            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
+                if (io.KeyShift) saveSceneAsJson();
+                else saveCurrentScene();
+            }
+            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_L, false)) showLoadSceneDialog();
             if (!ImGui::IsAnyItemActive()) {
                 if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) undoRedo.undo();
                 if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) undoRedo.redo();
@@ -168,7 +305,7 @@ int main(int argc, char* argv[]) {
             ImGui::PopStyleVar();
 
             // --- 3. Windows ---
-            projectExplorer.render();
+            projectExplorer.render(engine.getAssetManager(), loadScenePath);
             sceneHierarchy.render(engine.getWorld(), undoRedo);
             inspector.render(sceneHierarchy.getSelectedEntity(), projectExplorer.getProjectPath(), undoRedo);
             systemPanel.render();

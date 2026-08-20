@@ -1,4 +1,6 @@
 #include "SceneHierarchy.h"
+#include "DeleteEntityCommand.h"
+#include "Levi/ScriptComponent.h"
 #include "flecs/addons/cpp/c_types.hpp"
 #include <imgui.h>
 #include <memory>
@@ -6,6 +8,22 @@
 namespace Levi {
 
     namespace {
+        bool isVisibleSceneEntity(flecs::entity entity) {
+            if (!entity || !entity.is_alive()) return false;
+            const std::string path = entity.path().c_str();
+            if (path.rfind("::flecs", 0) == 0) return false;
+
+            const std::string name = entity.name().c_str();
+            if (name.empty() || name[0] == '$') return false;
+            if (entity.has(flecs::Module) || entity.has<flecs::Component>() || entity.has(flecs::System)) return false;
+            if (name == "World" || name == "Query" || name == "Observer") return false;
+
+            // Script schemas use Flecs entities as pair targets. They are ECS
+            // metadata, not scene objects, so keep them out of the hierarchy.
+            return !entity.has<ScriptComponentSchemaTag>()
+                && ScriptComponentRegistry::getInstance().getSchema(name) == nullptr;
+        }
+
         std::unique_ptr<EditorCommand> makeCreateEntityCommand(flecs::world world, flecs::entity parent = {}) {
             struct CreatedEntityState {
                 CreatedEntityState(flecs::world sourceWorld, flecs::entity_t sourceParent)
@@ -45,34 +63,11 @@ namespace Levi {
 
         // Query tìm các entity gốc
         auto q = world.query_builder()
-            .without(flecs::ChildOf)
+            .without(flecs::ChildOf, flecs::Wildcard)
             .build();
 
         q.each([this](flecs::entity e) {
-            // 1. Kiểm tra đường dẫn đầy đủ (Full Path)
-            // Đây là cách cực kỳ hiệu quả: Các thực thể hệ thống sẽ có path như "::flecs::core::World"
-            std::string path = e.path().c_str();
-            if (path.find("::flecs") == 0) {
-                return;
-            }
-
-            // 2. Lọc bỏ các thực thể không có tên hoặc là tiền tố đặc biệt
-            const char* name = e.name().c_str();
-            if (!name || name[0] == '\0' || name[0] == '$') {
-                return;
-            }
-
-            // 3. Lọc bổ sung các thực thể nội bộ khác (nếu còn sót)
-            if (e.has(flecs::Module) || e.has<flecs::Component>() || e.has(flecs::System)) {
-                return;
-            }
-
-            // 4. Loại bỏ một số từ khóa phổ biến của Flecs không nằm trong namespace flecs (nếu có)
-            if (strcmp(name, "World") == 0 || strcmp(name, "Query") == 0 || strcmp(name, "Observer") == 0) {
-                return;
-            }
-
-            drawEntityNode(e);
+            if (isVisibleSceneEntity(e)) drawEntityNode(e);
         });
 
         // Right-click on window background
@@ -101,7 +96,7 @@ namespace Levi {
         // Check if entity has children to decide if it should be a leaf
         bool hasChildren = false;
         e.children([&](flecs::entity child) {
-            hasChildren = true;
+            if (isVisibleSceneEntity(child)) hasChildren = true;
         });
 
         if (!hasChildren) {
@@ -121,17 +116,15 @@ namespace Levi {
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Delete Entity")) {
-                e.world().defer([this, e]() {
-                    if (selectedEntity_ == e) selectedEntity_ = flecs::entity::null();
-                    e.destruct();
-                });
+                selectedEntity_ = flecs::entity::null();
+                history_->execute(std::make_unique<DeleteEntityCommand>(e));
             }
             ImGui::EndPopup();
         }
 
         if (opened && hasChildren) {
             e.children([this](flecs::entity child) {
-                drawEntityNode(child);
+                if (isVisibleSceneEntity(child)) drawEntityNode(child);
             });
             ImGui::TreePop();
         }

@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <optional>
 #include <iostream>
 #include "ScriptComponent.h"
 
@@ -58,6 +59,19 @@ namespace Levi {
 
         // Check for file changes and hot-reload
         void checkForChanges();
+
+        // Run/stop the script lifecycle for Play mode. Script-created entities
+        // are tracked per script and destroyed when the runtime stops.
+        void startRuntime();
+        void stopRuntime();
+
+        // Scene requests are queued by Lua and consumed by EngineCore only at
+        // a safe frame boundary, outside Flecs queries/deferred operations.
+        bool hasPendingSceneLoad() const { return pendingScenePath_.has_value(); }
+        std::optional<std::string> takePendingSceneLoad();
+        void setCurrentScenePath(const std::string& path) { currentScenePath_ = path; }
+        const std::string& getCurrentScenePath() const { return currentScenePath_; }
+        void forgetCreatedEntities();
         
         // Export API definitions for LSP
         void exportAPIDefinitions();
@@ -96,6 +110,7 @@ namespace Levi {
         const std::vector<std::unique_ptr<ScriptInfo>>& getScripts() const { return scripts_; }
         const std::string& getLastError() const { return lastError_; }
         bool isInitialized() const { return initialized_; }
+        bool isRuntimeActive() const { return runtimeActive_; }
 
     private:
         bool loadScript(const std::string& scriptPath);
@@ -110,6 +125,9 @@ namespace Levi {
         std::vector<LuaAPIDoc> apiDocs_; // Track all registered APIs
         std::string lastError_;
         bool initialized_ = false;
+        bool runtimeActive_ = false;
+        std::optional<std::string> pendingScenePath_;
+        std::string currentScenePath_;
     };
 
 }
