@@ -24,6 +24,10 @@ int main() {
     camera.maxShakeOffset = 18.0f;
     root.set<Levi::Camera2D>(camera);
     child.set<Levi::Scale2D>({2.0f, 3.0f});
+    Levi::RigidBody2D rigidBody;
+    rigidBody.type = Levi::RigidBodyType2D::Dynamic;
+    rigidBody.restitution = 0.75f;
+    child.set<Levi::RigidBody2D>(rigidBody);
     grandchild.set<Levi::Rotation2D>({45.0f, {0.25f, 0.75f}, Levi::PivotType::Percent});
 
     Levi::ScriptComponent health;
@@ -53,12 +57,15 @@ int main() {
     const auto* sprite = root.get<Levi::Sprite2D>();
     const auto* restoredCamera = root.get<Levi::Camera2D>();
     const auto* scale = child.get<Levi::Scale2D>();
+    const auto* restoredBody = child.get<Levi::RigidBody2D>();
     const auto* rotation = grandchild.get<Levi::Rotation2D>();
     const auto* restoredHealth = child.get<Levi::ScriptComponent>(schema);
     if (!position || position->x != 12.0f || position->y != 34.0f) return 8;
     if (!sprite || sprite->texturePath != "assets/player.png" || sprite->size.x != 48.0f) return 9;
     if (!restoredCamera || restoredCamera->zoom != 1.5f || restoredCamera->maxShakeOffset != 18.0f) return 22;
     if (!scale || scale->x != 2.0f || scale->y != 3.0f) return 10;
+    if (!restoredBody || restoredBody->type != Levi::RigidBodyType2D::Dynamic || restoredBody->restitution != 0.75f)
+        return 23;
     if (!rotation || rotation->angle != 45.0f || rotation->pivot.x != 0.25f) return 11;
     if (!restoredHealth || std::get<int>(restoredHealth->values.at("current")) != 75) return 12;
     if (std::get<std::string>(restoredHealth->values.at("label")) != "Player HP") return 13;

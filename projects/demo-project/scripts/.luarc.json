@@ -11,6 +11,7 @@
         "Camera",
         "Scene",
         "PivotType",
+        "RigidBodyType2D",
         "entities"
     ],
     "workspace.library": [

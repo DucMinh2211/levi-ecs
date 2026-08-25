@@ -14,6 +14,7 @@ function onInit()
     print("[Lua] Global onInit() called.")
     -- Entities should now be created via Editor, 
     -- but you can still create persistent "Manager" entities here if needed.
+    ECS.createEntity("aaaa");
 end
 
 function onUpdate(deltaTime)

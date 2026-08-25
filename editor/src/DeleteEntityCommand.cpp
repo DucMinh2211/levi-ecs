@@ -2,8 +2,7 @@
 
 namespace Levi {
 
-    DeleteEntityCommand::DeleteEntityCommand(flecs::entity root)
-        : world_(root.world()), rootId_(root.id()) {
+    DeleteEntityCommand::DeleteEntityCommand(flecs::entity root) : world_(root.world()), rootId_(root.id()) {
         if (!root || !root.is_alive()) return;
 
         capture(root, root.parent().id());
@@ -21,6 +20,7 @@ namespace Levi {
         if (const auto* value = entity.get<Sprite2D>()) snapshot.sprite = *value;
         if (const auto* value = entity.get<AABBCollider2D>()) snapshot.aabb = *value;
         if (const auto* value = entity.get<CircleCollider2D>()) snapshot.circle = *value;
+        if (const auto* value = entity.get<RigidBody2D>()) snapshot.rigidBody = *value;
         if (const auto* value = entity.get<Camera2D>()) snapshot.camera = *value;
 
         const flecs::entity_t scriptComponentId = world_.component<ScriptComponent>().id();
@@ -32,9 +32,7 @@ namespace Levi {
         });
 
         snapshots_.push_back(std::move(snapshot));
-        entity.children([this](flecs::entity child) {
-            capture(child, child.parent().id());
-        });
+        entity.children([this](flecs::entity child) { capture(child, child.parent().id()); });
     }
 
     void DeleteEntityCommand::undo() {
@@ -59,6 +57,7 @@ namespace Levi {
             if (snapshot.sprite) entity.set<Sprite2D>(*snapshot.sprite);
             if (snapshot.aabb) entity.set<AABBCollider2D>(*snapshot.aabb);
             if (snapshot.circle) entity.set<CircleCollider2D>(*snapshot.circle);
+            if (snapshot.rigidBody) entity.set<RigidBody2D>(*snapshot.rigidBody);
             if (snapshot.camera) entity.set<Camera2D>(*snapshot.camera);
 
             for (const auto& [schemaId, value] : snapshot.scriptComponents) {
@@ -76,4 +75,4 @@ namespace Levi {
         if (root.is_alive()) root.destruct();
     }
 
-}
+} // namespace Levi

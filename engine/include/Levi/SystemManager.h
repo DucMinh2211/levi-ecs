@@ -1,9 +1,9 @@
 #pragma once
-#include <string>
-#include <vector>
 #include <functional>
 #include <iostream>
 #include <sol/sol.hpp>
+#include <string>
+#include <vector>
 
 namespace Levi {
 
@@ -21,7 +21,8 @@ namespace Levi {
             return instance;
         }
 
-        void registerSystem(const std::string& name, const std::vector<std::string>& query, sol::protected_function callback) {
+        void registerSystem(const std::string& name, const std::vector<std::string>& query,
+                            sol::protected_function callback) {
             // Check if system already exists to support hot-reload
             for (auto& sys : systems_) {
                 if (sys.name == name) {
@@ -36,21 +37,17 @@ namespace Levi {
             system.name = name;
             system.queryComponents = query;
             system.callback = callback;
-            system.isEnabled = true; 
+            system.isEnabled = true;
             systems_.push_back(system);
         }
 
-        std::vector<LuaSystem>& getSystems() {
-            return systems_;
-        }
+        std::vector<LuaSystem>& getSystems() { return systems_; }
 
-        void clear() {
-            systems_.clear();
-        }
+        void clear() { systems_.clear(); }
 
     private:
         SystemManager() = default;
         std::vector<LuaSystem> systems_;
     };
 
-}
+} // namespace Levi

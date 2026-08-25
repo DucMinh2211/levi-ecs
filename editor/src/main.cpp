@@ -1,15 +1,15 @@
+#include <SDL3/SDL.h>
+#include <filesystem>
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <SDL3/SDL.h>
 #include <iostream>
-#include <filesystem>
 #include <nfd.hpp>
 
+#include "Inspector.h"
 #include "Levi/Engine.h"
 #include "Levi/SceneSerializer.h"
 #include "ProjectExplorer.h"
 #include "SceneHierarchy.h"
-#include "Inspector.h"
 #include "SystemPanel.h"
 #include "UndoRedoManager.h"
 
@@ -34,13 +34,13 @@ int main(int argc, char* argv[]) {
         auto updateIniPath = [&](const std::string& projectPath) {
             std::filesystem::path configDir = std::filesystem::path(projectPath) / "editor-configs";
             std::filesystem::create_directories(configDir); // Tạo folder nếu chưa có
-            
+
             std::string iniPath = (configDir / "imgui.ini").make_preferred().string();
             strncpy(iniPathBuf, iniPath.c_str(), sizeof(iniPathBuf));
-            
+
             ImGuiIO& io = ImGui::GetIO();
             io.IniFilename = iniPathBuf; // Trỏ ImGui vào file mới
-            
+
             // Load lại settings từ file mới nếu nó đã tồn tại
             if (std::filesystem::exists(iniPath)) {
                 ImGui::LoadIniSettingsFromDisk(iniPath.c_str());
@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
 
         // Khởi tạo lần đầu với project mặc định
         updateIniPath(projectExplorer.getProjectPath());
-        
+
         // Load Lua scripts for project
         engine.loadProject(projectExplorer.getProjectPath());
 
@@ -68,9 +68,8 @@ int main(int argc, char* argv[]) {
             }
 
             std::string error;
-            const bool saved = binary
-                ? Levi::SceneSerializer::saveBinary(engine.getWorld(), scenePath, &error)
-                : Levi::SceneSerializer::saveJson(engine.getWorld(), scenePath, &error);
+            const bool saved = binary ? Levi::SceneSerializer::saveBinary(engine.getWorld(), scenePath, &error)
+                                      : Levi::SceneSerializer::saveJson(engine.getWorld(), scenePath, &error);
             if (saved) {
                 activeScenePath = scenePath;
                 engine.setCurrentScenePath(scenePath);
@@ -91,8 +90,8 @@ int main(int argc, char* argv[]) {
             std::filesystem::create_directories(scenesDir);
             const nfdfilteritem_t filters[] = {{"Levi JSON Scene", "levscene.json"}};
             nfdchar_t* outPath = nullptr;
-            const nfdresult_t result = NFD_SaveDialog(
-                &outPath, filters, 1, scenesDir.string().c_str(), "main.levscene.json");
+            const nfdresult_t result =
+                NFD_SaveDialog(&outPath, filters, 1, scenesDir.string().c_str(), "main.levscene.json");
             if (result == NFD_OKAY) {
                 const std::filesystem::path chosenPath(outPath);
                 NFD_FreePath(outPath);
@@ -158,37 +157,42 @@ int main(int argc, char* argv[]) {
         engine.run([&]() {
             // --- 0. Setup Default Layout (Godot style) ---
             ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
-            
+
             // Kiểm tra file ini tại vị trí mới
             bool iniExists = std::filesystem::exists(ImGui::GetIO().IniFilename);
             if ((engine.isFirstFrame() && !iniExists) || resetLayout) {
                 // Xóa layout cũ và build layout mới (Dựa trên imgui.ini của bạn)
-                ImGui::DockBuilderRemoveNode(dockspace_id); 
+                ImGui::DockBuilderRemoveNode(dockspace_id);
                 ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
                 ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
 
                 ImGuiID dock_main_id = dockspace_id;
 
                 // 1. Chia bên trái (15% cho Hierarchy và Project Explorer)
-                ImGuiID dock_id_left = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.15f, nullptr, &dock_main_id);
+                ImGuiID dock_id_left =
+                    ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.15f, nullptr, &dock_main_id);
 
                 // 2. Chia bên phải (25% cho Inspector và Systems)
-                ImGuiID dock_id_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
+                ImGuiID dock_id_right =
+                    ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
 
                 // 3. Chia dọc bên trái: Trên (Hierarchy 60%), Dưới (Project Explorer 40%)
                 ImGuiID dock_id_left_top, dock_id_left_bottom;
-                dock_id_left_top = ImGui::DockBuilderSplitNode(dock_id_left, ImGuiDir_Up, 0.60f, nullptr, &dock_id_left_bottom);
-                
+                dock_id_left_top =
+                    ImGui::DockBuilderSplitNode(dock_id_left, ImGuiDir_Up, 0.60f, nullptr, &dock_id_left_bottom);
+
                 // 4. Chia dọc bên phải: Trên (Inspector 70%), Dưới (Systems 30%)
                 ImGuiID dock_id_right_top, dock_id_right_bottom;
-                dock_id_right_top = ImGui::DockBuilderSplitNode(dock_id_right, ImGuiDir_Up, 0.70f, nullptr, &dock_id_right_bottom);
+                dock_id_right_top =
+                    ImGui::DockBuilderSplitNode(dock_id_right, ImGuiDir_Up, 0.70f, nullptr, &dock_id_right_bottom);
 
                 // 5. Gán các cửa sổ vào node tương ứng
                 ImGui::DockBuilderDockWindow("Scene Hierarchy", dock_id_left_top);
                 ImGui::DockBuilderDockWindow("Project Explorer", dock_id_left_bottom);
                 ImGui::DockBuilderDockWindow("Inspector", dock_id_right_top);
                 ImGui::DockBuilderDockWindow("Systems", dock_id_right_bottom);
-                ImGui::DockBuilderDockWindow("Viewport", dock_main_id); // dock_main_id giờ là khu vực ở giữa (CentralNode)
+                ImGui::DockBuilderDockWindow("Viewport",
+                                             dock_main_id); // dock_main_id giờ là khu vực ở giữa (CentralNode)
 
                 ImGui::DockBuilderFinish(dockspace_id);
 
@@ -196,24 +200,24 @@ int main(int argc, char* argv[]) {
                 resetLayout = false;
             }
 
-
             // --- 1. Toolbar (Main Menu Bar) ---
             if (ImGui::BeginMainMenuBar()) {
                 if (ImGui::BeginMenu("Project")) {
-                    if (ImGui::MenuItem("New Project")) {}
+                    if (ImGui::MenuItem("New Project")) {
+                    }
                     if (ImGui::MenuItem("Open Project...", "Ctrl+O")) {
-                        nfdchar_t *outPath = NULL;
+                        nfdchar_t* outPath = NULL;
                         nfdresult_t result = NFD_PickFolder(&outPath, NULL);
                         if (result == NFD_OKAY) {
                             projectExplorer.setProjectPath(outPath);
                             updateIniPath(outPath); // Cập nhật file cấu hình cho project mới
-                            
+
                             // Reload Lua scripts for new project
                             undoRedo.clear();
                             engine.loadProject(outPath);
                             activeScenePath.clear();
                             sceneHierarchy.setSelectedEntity(flecs::entity::null());
-                            
+
                             NFD_FreePath(outPath);
                         }
                     }
@@ -224,7 +228,8 @@ int main(int argc, char* argv[]) {
                     if (ImGui::MenuItem("Load Scene...", "Ctrl+L", false, canEditScene)) showLoadSceneDialog();
                     if (ImGui::MenuItem("Export Scene (Binary)")) {
                         std::string error;
-                        const auto scenePath = std::filesystem::path(projectExplorer.getProjectPath()) / "scenes" / "main.levscene.bin";
+                        const auto scenePath =
+                            std::filesystem::path(projectExplorer.getProjectPath()) / "scenes" / "main.levscene.bin";
                         if (!Levi::SceneSerializer::saveBinary(engine.getWorld(), scenePath, &error)) {
                             std::cerr << "[Editor] Binary export failed: " << error << std::endl;
                         } else {
@@ -234,16 +239,12 @@ int main(int argc, char* argv[]) {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Editor")) {
-                    std::string undoLabel = undoRedo.canUndo()
-                        ? std::string("Undo ") + undoRedo.undoName()
-                        : "Undo";
+                    std::string undoLabel = undoRedo.canUndo() ? std::string("Undo ") + undoRedo.undoName() : "Undo";
                     if (ImGui::MenuItem(undoLabel.c_str(), "Ctrl+Z", false, undoRedo.canUndo())) {
                         undoRedo.undo();
                     }
 
-                    std::string redoLabel = undoRedo.canRedo()
-                        ? std::string("Redo ") + undoRedo.redoName()
-                        : "Redo";
+                    std::string redoLabel = undoRedo.canRedo() ? std::string("Redo ") + undoRedo.redoName() : "Redo";
                     if (ImGui::MenuItem(redoLabel.c_str(), "Ctrl+Y", false, undoRedo.canRedo())) {
                         undoRedo.redo();
                     }
@@ -263,10 +264,14 @@ int main(int argc, char* argv[]) {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetMainViewport()->GetCenter().x - 110.0f, 24.0f), ImGuiCond_Always);
             ImGui::SetNextWindowBgAlpha(0.85f);
             ImGui::Begin("Play Controls", nullptr,
-                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
+                         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                             ImGuiWindowFlags_NoDocking);
             const auto playState = engine.getPlayState();
             if (playState == Levi::PlayState::Edit) {
-                if (ImGui::Button("Play")) { undoRedo.clear(); engine.play(); }
+                if (ImGui::Button("Play")) {
+                    undoRedo.clear();
+                    engine.play();
+                }
             } else {
                 if (playState == Levi::PlayState::Playing) {
                     if (ImGui::Button("Pause")) engine.pause();
@@ -284,8 +289,10 @@ int main(int argc, char* argv[]) {
 
             ImGuiIO& io = ImGui::GetIO();
             if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
-                if (io.KeyShift) saveSceneAsJson();
-                else saveCurrentScene();
+                if (io.KeyShift)
+                    saveSceneAsJson();
+                else
+                    saveCurrentScene();
             }
             if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_L, false)) showLoadSceneDialog();
             if (!ImGui::IsAnyItemActive()) {

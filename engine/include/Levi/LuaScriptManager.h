@@ -1,24 +1,24 @@
 #pragma once
 
-#include <sol/sol.hpp>
-#include <flecs.h>
-#include <string>
+#include "ScriptComponent.h"
 #include <filesystem>
-#include <unordered_map>
-#include <vector>
+#include <flecs.h>
+#include <iostream>
 #include <memory>
 #include <optional>
-#include <iostream>
-#include "ScriptComponent.h"
+#include <sol/sol.hpp>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace Levi {
-    
+
     struct ScriptInfo {
         std::string path;
         std::filesystem::file_time_type lastModified;
         bool loaded = false;
         std::string errorMessage;
-        
+
         // Per-script environment and functions
         sol::environment env;
         sol::protected_function onInit;
@@ -44,7 +44,7 @@ namespace Levi {
 
         // Initialize Lua VM for a specific project
         bool init(const std::string& projectPath, flecs::world* world);
-        
+
         // Shutdown and cleanup Lua VM
         void shutdown();
 
@@ -72,31 +72,34 @@ namespace Levi {
         void setCurrentScenePath(const std::string& path) { currentScenePath_ = path; }
         const std::string& getCurrentScenePath() const { return currentScenePath_; }
         void forgetCreatedEntities();
-        
+
         // Export API definitions for LSP
         void exportAPIDefinitions();
 
         // Execute Lua function (e.g., onUpdate, onInit)
-        template<typename... Args>
-        void callFunction(const std::string& functionName, Args&&... args) {
+        template <typename... Args> void callFunction(const std::string& functionName, Args&&... args) {
             if (!initialized_) return;
-            
+
             for (auto& scriptInfoPtr : scripts_) {
                 ScriptInfo& scriptInfo = *scriptInfoPtr;
                 if (!scriptInfo.loaded) continue;
-                
+
                 sol::protected_function func;
-                if (functionName == "onUpdate") func = scriptInfo.onUpdate;
-                else if (functionName == "onInit") func = scriptInfo.onInit;
-                else if (functionName == "onShutdown") func = scriptInfo.onShutdown;
-                else func = scriptInfo.env[functionName];
+                if (functionName == "onUpdate")
+                    func = scriptInfo.onUpdate;
+                else if (functionName == "onInit")
+                    func = scriptInfo.onInit;
+                else if (functionName == "onShutdown")
+                    func = scriptInfo.onShutdown;
+                else
+                    func = scriptInfo.env[functionName];
 
                 if (func.valid()) {
                     auto result = func(std::forward<Args>(args)...);
                     if (!result.valid()) {
                         sol::error err = result;
-                        std::cerr << "[Lua] Error calling " << functionName 
-                                  << " in " << scriptInfo.path << ": " << err.what() << std::endl;
+                        std::cerr << "[Lua] Error calling " << functionName << " in " << scriptInfo.path << ": "
+                                  << err.what() << std::endl;
                         lastError_ = err.what();
                     }
                 }
@@ -130,4 +133,4 @@ namespace Levi {
         std::string currentScenePath_;
     };
 
-}
+} // namespace Levi

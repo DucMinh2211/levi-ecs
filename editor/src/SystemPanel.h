@@ -1,6 +1,6 @@
 #pragma once
-#include <imgui.h>
 #include "Levi/SystemManager.h"
+#include <imgui.h>
 
 namespace Levi {
 
@@ -33,4 +33,4 @@ namespace Levi {
         }
     };
 
-}
+} // namespace Levi

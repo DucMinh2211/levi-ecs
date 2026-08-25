@@ -1,9 +1,10 @@
 #include "Levi/Engine.h"
-#include "Levi/SystemManager.h"
-#include "Levi/ScriptComponent.h"
 #include "Levi/Input.h"
 #include "Levi/Modules.h"
+#include "Levi/Physics2D.h"
 #include "Levi/SceneSerializer.h"
+#include "Levi/ScriptComponent.h"
+#include "Levi/SystemManager.h"
 #include "imgui.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -17,7 +18,7 @@ namespace {
         if (error) *error = message;
         return false;
     }
-}
+} // namespace
 
 namespace Levi {
     EngineCore::EngineCore() : isRunning_(false), window_(nullptr), renderer_(nullptr), viewportTexture_(nullptr) {
@@ -61,10 +62,10 @@ namespace Levi {
 
         std::error_code relativeError;
         const auto relative = std::filesystem::relative(currentScenePath_, projectPath_, relativeError);
-        const bool outsideProject = relativeError || relative.empty()
-            || (!relative.begin()->empty() && *relative.begin() == "..");
-        luaScriptManager_.setCurrentScenePath(
-            outsideProject ? currentScenePath_.generic_string() : relative.generic_string());
+        const bool outsideProject =
+            relativeError || relative.empty() || (!relative.begin()->empty() && *relative.begin() == "..");
+        luaScriptManager_.setCurrentScenePath(outsideProject ? currentScenePath_.generic_string()
+                                                             : relative.generic_string());
     }
 
     bool EngineCore::loadScene(const std::filesystem::path& scenePath, std::string* error) {
@@ -78,7 +79,10 @@ namespace Levi {
             return reportSceneError(error, "unsupported scene format: " + scenePath.string());
         }
 
-        if (loaded) setCurrentScenePath(scenePath);
+        if (loaded) {
+            Physics2D::reset(world_);
+            setCurrentScenePath(scenePath);
+        }
         return loaded;
     }
 
@@ -90,6 +94,7 @@ namespace Levi {
         if (playState_ != PlayState::Edit) return;
         editSceneSnapshot_ = SceneSerializer::toJson(world_);
         editScenePathSnapshot_ = currentScenePath_;
+        Physics2D::reset(world_);
         playState_ = PlayState::Playing;
         luaScriptManager_.startRuntime();
     }
@@ -109,9 +114,12 @@ namespace Levi {
         if (!editSceneSnapshot_.empty() && !SceneSerializer::fromJson(world_, editSceneSnapshot_, &error)) {
             std::cerr << "[Editor] Failed to restore edit scene: " << error << std::endl;
         }
+        Physics2D::reset(world_);
         currentScenePath_ = editScenePathSnapshot_;
-        if (!currentScenePath_.empty()) setCurrentScenePath(currentScenePath_);
-        else luaScriptManager_.setCurrentScenePath({});
+        if (!currentScenePath_.empty())
+            setCurrentScenePath(currentScenePath_);
+        else
+            luaScriptManager_.setCurrentScenePath({});
         editSceneSnapshot_.clear();
         editScenePathSnapshot_.clear();
         playState_ = PlayState::Edit;
@@ -142,10 +150,10 @@ namespace Levi {
         }
 
         const std::string filename = resolved.filename().string();
-        if ((!filename.ends_with(".levscene.json") && !filename.ends_with(".levscene.bin"))
-            || !std::filesystem::is_regular_file(resolved)) {
-            const std::string message = "runtime scene does not exist or has an unsupported format: "
-                + resolved.string();
+        if ((!filename.ends_with(".levscene.json") && !filename.ends_with(".levscene.bin")) ||
+            !std::filesystem::is_regular_file(resolved)) {
+            const std::string message =
+                "runtime scene does not exist or has an unsupported format: " + resolved.string();
             std::cerr << "[Scene] " << message << std::endl;
             luaScriptManager_.callFunction("onSceneLoadFailed", *request, message);
             return;
@@ -173,7 +181,8 @@ namespace Levi {
             SDL_DestroyTexture(viewportTexture_);
         }
         // Tạo texture có thể dùng làm đích đến để vẽ (TARGET)
-        viewportTexture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+        viewportTexture_ =
+            SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
         if (!viewportTexture_) {
             std::cerr << "SDL_CreateTexture (Viewport) Error: " << SDL_GetError() << std::endl;
         }
@@ -187,12 +196,8 @@ namespace Levi {
             return false;
         }
 
-        window_ = SDL_CreateWindow(
-            config.WindowTitle.c_str(),
-            config.WindowWidth,
-            config.WindowHeight,
-            SDL_WINDOW_RESIZABLE
-        );
+        window_ =
+            SDL_CreateWindow(config.WindowTitle.c_str(), config.WindowWidth, config.WindowHeight, SDL_WINDOW_RESIZABLE);
 
         if (!window_) {
             std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
@@ -211,7 +216,8 @@ namespace Levi {
         // -- Initialize ImGUI --
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO(); (void)io;
+        ImGuiIO& io = ImGui::GetIO();
+        (void)io;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         ImGui::StyleColorsDark();
@@ -231,10 +237,11 @@ namespace Levi {
 
     void EngineCore::setupSystems() {
         // Register Renderer and AssetManager pointers into ECS World as Singletons
-        world_.set<RendererRef>({ renderer_ });
-        world_.set<AssetManagerRef>({ &assetManager_ });
+        world_.set<RendererRef>({renderer_});
+        world_.set<AssetManagerRef>({&assetManager_});
 
         world_.import<TransformModule>();
+        world_.import<PhysicsModule>();
         world_.import<RenderModule>();
 
         std::cout << "[Levi Engine] Systems Registered." << std::endl;
@@ -247,18 +254,27 @@ namespace Levi {
 
             auto builder = world_.query_builder();
             for (const auto& compName : sys.queryComponents) {
-                if (compName == "Position2D") builder.with<Position2D>();
-                else if (compName == "Scale2D") builder.with<Scale2D>();
-                else if (compName == "Rotation2D") builder.with<Rotation2D>();
-                else if (compName == "Sprite2D") builder.with<Sprite2D>();
-                else if (compName == "AABBCollider2D") builder.with<AABBCollider2D>();
-                else if (compName == "CircleCollider2D") builder.with<CircleCollider2D>();
-                else if (compName == "Camera2D") builder.with<Camera2D>();
+                if (compName == "Position2D")
+                    builder.with<Position2D>();
+                else if (compName == "Scale2D")
+                    builder.with<Scale2D>();
+                else if (compName == "Rotation2D")
+                    builder.with<Rotation2D>();
+                else if (compName == "Sprite2D")
+                    builder.with<Sprite2D>();
+                else if (compName == "AABBCollider2D")
+                    builder.with<AABBCollider2D>();
+                else if (compName == "CircleCollider2D")
+                    builder.with<CircleCollider2D>();
+                else if (compName == "RigidBody2D")
+                    builder.with<RigidBody2D>();
+                else if (compName == "Camera2D")
+                    builder.with<Camera2D>();
                 else {
                     builder.with<ScriptComponent>(world_.entity(compName.c_str()));
                 }
             }
-            
+
             auto f = builder.build();
             f.each([&sys](flecs::entity e) {
                 auto result = sys.callback(e.id());
@@ -274,7 +290,7 @@ namespace Levi {
         if (!isRunning_) return;
 
         std::cout << "[Levi Engine] Running Main Loop..." << std::endl;
-        
+
         SDL_Event event;
         while (isRunning_) {
             // 1. Process Events
@@ -287,13 +303,13 @@ namespace Levi {
             Input::instance().update();
 
             // --- 2. Render to Viewport Texture (Game Logic) ---
-            SDL_SetRenderTarget(renderer_, viewportTexture_); // Switch to virtual screen
+            SDL_SetRenderTarget(renderer_, viewportTexture_);   // Switch to virtual screen
             SDL_SetRenderDrawColor(renderer_, 20, 20, 20, 255); // Darker background color for the game
             SDL_RenderClear(renderer_);
-            
+
             // Check for Lua script changes (hot reload)
             luaScriptManager_.checkForChanges();
-            
+
             if (playState_ == PlayState::Playing) {
                 world_.defer_begin();
                 luaScriptManager_.callFunction("onUpdate", world_.delta_time());
@@ -304,17 +320,17 @@ namespace Levi {
             if (luaScriptManager_.isRuntimeActive() && luaScriptManager_.hasPendingSceneLoad()) {
                 processPendingSceneLoad();
             }
-            
+
             world_.set_time_scale(playState_ == PlayState::Playing ? 1.0f : 0.0f);
             world_.progress(); // Rendering continues while simulation receives a zero delta in Edit/Pause.
-            
+
             SDL_SetRenderTarget(renderer_, nullptr); // Switch back to main screen
             // --------------------------------------------------
 
             // --- 3. Render Editor (Main Window) ---
             SDL_SetRenderDrawColor(renderer_, 33, 33, 33, 255);
             SDL_RenderClear(renderer_);
-            
+
             beginFrame();
 
             if (uiCallback) {
@@ -324,7 +340,7 @@ namespace Levi {
             }
 
             endFrame();
-            
+
             SDL_RenderPresent(renderer_);
         }
     }
@@ -333,7 +349,7 @@ namespace Levi {
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        
+
         // Đặt tên cố định cho DockSpace để lưu layout chính xác vào .ini
         ImGui::DockSpaceOverViewport(ImGui::GetID("MainDockSpace"), ImGui::GetMainViewport());
     }
@@ -370,4 +386,4 @@ namespace Levi {
             std::cout << "[Levi Engine] Shut down." << std::endl;
         }
     }
-}
+} // namespace Levi

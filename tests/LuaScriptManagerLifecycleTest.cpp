@@ -26,10 +26,10 @@ int main() {
             sol::table physics = scripts.getLuaState()["Physics"];
             sol::table camera = scripts.getLuaState()["Camera"];
             sol::table scene = scripts.getLuaState()["Scene"];
-            if (!input.valid() || !input["isKeyDown"].valid()
-                || !physics.valid() || !physics["overlaps"].valid()
-                || !camera.valid() || !camera["move"].valid() || !camera["shake"].valid()
-                || !scene.valid() || !scene["load"].valid() || !scene["reload"].valid()) {
+            if (!input.valid() || !input["isKeyDown"].valid() || !physics.valid() || !physics["overlaps"].valid() ||
+                !physics["applyImpulse"].valid() || !physics["beganContact"].valid() || !camera.valid() ||
+                !camera["move"].valid() || !camera["shake"].valid() || !scene.valid() || !scene["load"].valid() ||
+                !scene["reload"].valid()) {
                 std::cerr << "Input/Physics/Camera/Scene Lua API was not registered\n";
                 return 5;
             }
@@ -38,22 +38,21 @@ int main() {
             const auto projectConfig = projectRoot / ".luarc.json";
             const auto scriptsConfig = projectRoot / "scripts" / ".luarc.json";
             const auto apiDefinitions = projectRoot / "scripts" / "levi-api" / "ecs.lua";
-            if (!std::filesystem::exists(projectConfig)
-                || !std::filesystem::exists(scriptsConfig)
-                || !std::filesystem::exists(apiDefinitions)) {
+            if (!std::filesystem::exists(projectConfig) || !std::filesystem::exists(scriptsConfig) ||
+                !std::filesystem::exists(apiDefinitions)) {
                 std::cerr << "LuaLS workspace files were not generated\n";
                 return 6;
             }
 
             std::ifstream apiFile(apiDefinitions, std::ios::binary);
-            const std::string apiText{
-                std::istreambuf_iterator<char>(apiFile),
-                std::istreambuf_iterator<char>()};
-            if (apiText.find("function ECS.createEntity") == std::string::npos
-                || apiText.find("function Input.isKeyDown") == std::string::npos
-                || apiText.find("function Physics.overlaps") == std::string::npos
-                || apiText.find("function Camera.shake") == std::string::npos
-                || apiText.find("function Scene.load") == std::string::npos) {
+            const std::string apiText{std::istreambuf_iterator<char>(apiFile), std::istreambuf_iterator<char>()};
+            if (apiText.find("function ECS.createEntity") == std::string::npos ||
+                apiText.find("function Input.isKeyDown") == std::string::npos ||
+                apiText.find("function Physics.overlaps") == std::string::npos ||
+                apiText.find("function Physics.applyImpulse") == std::string::npos ||
+                apiText.find("function ECS.addRigidBody") == std::string::npos ||
+                apiText.find("function Camera.shake") == std::string::npos ||
+                apiText.find("function Scene.load") == std::string::npos) {
                 std::cerr << "Generated LuaLS definitions are incomplete\n";
                 return 7;
             }
@@ -64,8 +63,7 @@ int main() {
             }
             auto& runtimeScript = *scripts.getScripts().front();
             auto defineRuntimeInit = scripts.getLuaState().safe_script(
-                "function onInit() ECS.createEntity('__LeviRuntimeLifecycleTest') end",
-                runtimeScript.env);
+                "function onInit() ECS.createEntity('__LeviRuntimeLifecycleTest') end", runtimeScript.env);
             if (!defineRuntimeInit.valid()) {
                 std::cerr << "Could not define runtime lifecycle fixture\n";
                 return 9;
@@ -87,8 +85,7 @@ int main() {
                 return 12;
             }
             const auto requestedScene = scripts.takePendingSceneLoad();
-            if (!requestedScene || *requestedScene != "scenes/level_2.levscene.json"
-                || scripts.hasPendingSceneLoad()) {
+            if (!requestedScene || *requestedScene != "scenes/level_2.levscene.json" || scripts.hasPendingSceneLoad()) {
                 std::cerr << "Queued runtime scene request was not consumed correctly\n";
                 return 13;
             }

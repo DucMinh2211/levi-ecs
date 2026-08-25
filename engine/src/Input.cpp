@@ -34,14 +34,14 @@ namespace Levi {
 
     bool Input::isKeyPressed(const std::string& key) const {
         const auto code = scancodeFor(key);
-        return code > SDL_SCANCODE_UNKNOWN && static_cast<std::size_t>(code) < keys_.size()
-            && keys_[code] && !previousKeys_[code];
+        return code > SDL_SCANCODE_UNKNOWN && static_cast<std::size_t>(code) < keys_.size() && keys_[code] &&
+               !previousKeys_[code];
     }
 
     bool Input::isKeyReleased(const std::string& key) const {
         const auto code = scancodeFor(key);
-        return code > SDL_SCANCODE_UNKNOWN && static_cast<std::size_t>(code) < keys_.size()
-            && !keys_[code] && previousKeys_[code];
+        return code > SDL_SCANCODE_UNKNOWN && static_cast<std::size_t>(code) < keys_.size() && !keys_[code] &&
+               previousKeys_[code];
     }
 
     static unsigned int mouseMask(int button) {
@@ -57,4 +57,4 @@ namespace Levi {
         return (mouseButtons_ & mask) != 0 && (previousMouseButtons_ & mask) == 0;
     }
 
-}
+} // namespace Levi

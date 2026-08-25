@@ -215,7 +215,8 @@ scripts during the run, and then restores the edit-time snapshot.
 Assets can be dragged from the Project Explorer into Sprite or Lua `AssetPath`
 fields in the Inspector. Image assets display cached thumbnails.
 
-Lua scripts can read input and run basic collision checks:
+Lua scripts can read input and drive Box2D rigid bodies. Engine positions and
+velocities use pixels, while forces and impulses use Box2D's Newton units:
 
 ```lua
 function onUpdate(deltaTime)
@@ -224,13 +225,32 @@ function onUpdate(deltaTime)
     end
 
     local mouse = Input.getMousePosition()
-    local touching = Physics.overlaps(player, enemy)
+    if Input.isKeyPressed("SPACE") then
+        Physics.applyImpulse(player, 0, -1.8)
+    end
+
+    if Physics.beganContact(player, ground) then
+        Camera.shake(0.35, 0.15)
+    end
 end
 
--- Collider setup
+-- A dynamic body needs Position2D and at least one collider.
 ECS.addAABBCollider(player, 64, 64)
-ECS.addCircleCollider(enemy, 24)
+ECS.addRigidBody(player, RigidBodyType2D.Dynamic)
+
+ECS.addAABBCollider(ground, 800, 40)
+ECS.addRigidBody(ground, RigidBodyType2D.Static)
 ```
+
+The runtime uses a fixed 60 Hz Box2D step with four solver substeps. It supports
+static, kinematic, and dynamic bodies, gravity, damping, material density,
+friction/restitution, sensors, collision filters, continuous bodies, forces,
+impulses, and begin/end/current contact queries. `RigidBody2D` is editable in
+the Inspector and persists in both JSON and binary scenes. Runtime handles stay
+outside scene data and are rebuilt safely on Play, Stop, and scene changes.
+
+The demo project includes `scripts/physics_demo.lua`: press Play to spawn a
+floor, box, and ball; press Space to apply an upward impulse to the ball.
 
 ### Lua language server
 
@@ -245,8 +265,8 @@ the embedded Project Explorer is not itself a text editor or LSP client.
 
 Input exposes `isKeyDown`, `isKeyPressed`, `isKeyReleased`,
 `isMouseButtonDown`, `isMouseButtonPressed`, and `getMousePosition`.
-Physics exposes entity `overlaps`, numeric `overlapsAABB`, and
-`overlapsCircle` helpers.
+Physics also exposes entity `overlaps`, numeric `overlapsAABB` and
+`overlapsCircle` helpers for lightweight tests that do not require a rigid body.
 
 Runtime scene changes are queued until the current Lua/Flecs update has
 finished, so they are safe to request from `onUpdate` or a Lua system:
@@ -306,7 +326,7 @@ saved; scene files persist zoom, active state, and maximum shake offset/angle.
 *   **`engine/`**: Core engine logic (ECS, Rendering, Assets, Lua integration).
 *   **`editor/`**: Studio GUI and developer tools (Inspector, Hierarchy).
 *   **`projects/`**: User game projects and assets.
-*   **`third_party/`**: External libraries (SDL3, Flecs, Lua, sol2, ImGui).
+*   **`third_party/`**: External libraries (SDL3, Flecs, Box2D, Lua, sol2, ImGui).
 *   **`bin/`**: Compiled executables and binaries.
 
 ---

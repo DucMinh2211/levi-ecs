@@ -25,4 +25,4 @@ namespace Levi {
         void drawEntityNode(flecs::entity e);
     };
 
-}
+} // namespace Levi

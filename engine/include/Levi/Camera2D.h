@@ -19,11 +19,8 @@ namespace Levi {
         static constexpr float MaxZoom = 100.0f;
 
         static float clampZoom(float zoom);
-        static Vector2 worldToScreen(
-            Vector2 worldPosition,
-            const CameraView2D& camera,
-            float viewportWidth,
-            float viewportHeight);
+        static Vector2 worldToScreen(Vector2 worldPosition, const CameraView2D& camera, float viewportWidth,
+                                     float viewportHeight);
 
         static CameraView2D makeView(const Position2D& position, const Camera2D& camera);
         static flecs::entity findActive(flecs::world& world);
@@ -36,4 +33,4 @@ namespace Levi {
         static void advanceShake(Camera2D& camera, flecs::entity_t entityId, float deltaTime);
     };
 
-}
+} // namespace Levi

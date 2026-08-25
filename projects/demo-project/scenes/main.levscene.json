@@ -1,0 +1,7 @@
+{
+  "format": "levi.scene",
+  "version": 1,
+  "entities": [
+    {"parent":-1,"name":"New Entity","components":{},"scripts":[]}
+  ]
+}

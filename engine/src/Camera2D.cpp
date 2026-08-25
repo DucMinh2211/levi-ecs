@@ -9,11 +9,8 @@ namespace Levi {
         return std::clamp(zoom, MinZoom, MaxZoom);
     }
 
-    Vector2 Camera2DSystem::worldToScreen(
-        Vector2 worldPosition,
-        const CameraView2D& camera,
-        float viewportWidth,
-        float viewportHeight) {
+    Vector2 Camera2DSystem::worldToScreen(Vector2 worldPosition, const CameraView2D& camera, float viewportWidth,
+                                          float viewportHeight) {
         if (!camera.active) return worldPosition;
 
         const float radians = -camera.rotation * 0.01745329251994329577f;
@@ -24,19 +21,14 @@ namespace Levi {
         const float rotatedX = relativeX * cosine - relativeY * sine;
         const float rotatedY = relativeX * sine + relativeY * cosine;
         const float zoom = clampZoom(camera.zoom);
-        return {
-            viewportWidth * 0.5f + rotatedX * zoom,
-            viewportHeight * 0.5f + rotatedY * zoom
-        };
+        return {viewportWidth * 0.5f + rotatedX * zoom, viewportHeight * 0.5f + rotatedY * zoom};
     }
 
     CameraView2D Camera2DSystem::makeView(const Position2D& position, const Camera2D& camera) {
-        return {
-            {position.x + camera.shakeOffset.x, position.y + camera.shakeOffset.y},
-            clampZoom(camera.zoom),
-            camera.shakeRotation,
-            camera.active
-        };
+        return {{position.x + camera.shakeOffset.x, position.y + camera.shakeOffset.y},
+                clampZoom(camera.zoom),
+                camera.shakeRotation,
+                camera.active};
     }
 
     flecs::entity Camera2DSystem::findActive(flecs::world& world) {
@@ -49,9 +41,8 @@ namespace Levi {
     }
 
     void Camera2DSystem::setActive(flecs::world& world, flecs::entity_t entityId) {
-        world.query<Camera2D>().each([entityId](flecs::entity entity, Camera2D& camera) {
-            camera.active = entity.id() == entityId;
-        });
+        world.query<Camera2D>().each(
+            [entityId](flecs::entity entity, Camera2D& camera) { camera.active = entity.id() == entityId; });
     }
 
     bool Camera2DSystem::move(flecs::world& world, float deltaX, float deltaY) {
@@ -124,8 +115,7 @@ namespace Levi {
         const float seed = static_cast<float>(flecs::strip_generation(entityId) % 997u) * 0.0137f;
         camera.shakeOffset.x = std::sin(camera.shakeClock * 37.0f + seed) * camera.maxShakeOffset * amplitude;
         camera.shakeOffset.y = std::sin(camera.shakeClock * 53.0f + seed * 1.7f) * camera.maxShakeOffset * amplitude;
-        camera.shakeRotation = std::sin(camera.shakeClock * 29.0f + seed * 2.3f)
-            * camera.maxShakeRotation * amplitude;
+        camera.shakeRotation = std::sin(camera.shakeClock * 29.0f + seed * 2.3f) * camera.maxShakeRotation * amplitude;
     }
 
-}
+} // namespace Levi

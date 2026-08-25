@@ -1,8 +1,8 @@
 #include "Levi/AssetManager.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
-#include <iostream>
 #include <filesystem>
+#include <iostream>
 
 namespace Levi {
 
@@ -45,14 +45,15 @@ namespace Levi {
         SDL_DestroySurface(surface); // Surface is no longer needed after texture creation
 
         if (!texture) {
-            std::cerr << "[AssetManager] Failed to create texture: " << finalPath << " - " << SDL_GetError() << std::endl;
+            std::cerr << "[AssetManager] Failed to create texture: " << finalPath << " - " << SDL_GetError()
+                      << std::endl;
             return nullptr;
         }
 
         // Cache the texture
         textures_[finalPath] = texture;
         std::cout << "[AssetManager] Texture loaded: " << finalPath << std::endl;
-        
+
         return texture;
     }
 
@@ -73,4 +74,4 @@ namespace Levi {
         std::cout << "[AssetManager] All textures cleared." << std::endl;
     }
 
-}
+} // namespace Levi

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
 #include <filesystem>
 #include <functional>
+#include <string>
 #include <vector>
 
 #include "Levi/AssetManager.h"
@@ -40,4 +40,4 @@ namespace Levi {
         std::filesystem::path selectedPath_;
     };
 
-}
+} // namespace Levi

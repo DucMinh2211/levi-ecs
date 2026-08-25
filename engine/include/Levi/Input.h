@@ -27,4 +27,4 @@ namespace Levi {
         float mouseY_ = 0.0f;
     };
 
-}
+} // namespace Levi

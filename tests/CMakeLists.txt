@@ -36,6 +36,10 @@ add_executable(Physics2DTest Physics2DTest.cpp)
 target_link_libraries(Physics2DTest PRIVATE LeviEngine)
 add_test(NAME physics_2d COMMAND Physics2DTest)
 
+add_executable(PhysicsModuleTest PhysicsModuleTest.cpp)
+target_link_libraries(PhysicsModuleTest PRIVATE LeviEngine)
+add_test(NAME physics_module COMMAND PhysicsModuleTest)
+
 add_executable(Camera2DTest Camera2DTest.cpp)
 target_link_libraries(Camera2DTest PRIVATE LeviEngine)
 add_test(NAME camera_2d COMMAND Camera2DTest)

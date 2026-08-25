@@ -54,6 +54,15 @@ set(FLECS_STATIC ON CACHE BOOL "" FORCE)
 set(FLECS_SHARED OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/flecs)
 
+# --- Box2D ---
+# Box2D is vendored so editor and exported projects build without a network
+# connection. Tests/samples are intentionally not enabled for the dependency.
+set(BOX2D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX2D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX2D_DOCS OFF CACHE BOOL "" FORCE)
+add_subdirectory(third_party/box2d)
+
 # --- Native File Dialog Extended (NFD) ---
 set(NFD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/nfd)
@@ -102,4 +111,75 @@ add_subdirectory(editor)
 include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)
+endif()
+
+# Keep formatting scoped to project-owned C and C++ files. Vendored dependencies
+# maintain their own formatting rules and must not be rewritten by this target.
+file(GLOB_RECURSE LEVI_CLANG_FORMAT_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.cxx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.hxx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*.cxx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*.hxx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cxx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.hxx"
+)
+
+set(LEVI_CLANG_FORMAT_HINTS)
+if(WIN32 AND DEFINED ENV{USERPROFILE})
+    file(GLOB LEVI_VSCODE_CLANG_FORMAT_HINTS
+        "$ENV{USERPROFILE}/.vscode/extensions/ms-vscode.cpptools-*/LLVM/bin"
+    )
+    list(APPEND LEVI_CLANG_FORMAT_HINTS ${LEVI_VSCODE_CLANG_FORMAT_HINTS})
+endif()
+
+find_program(LEVI_CLANG_FORMAT_EXECUTABLE
+    NAMES
+        clang-format
+        clang-format-20
+        clang-format-19
+        clang-format-18
+        clang-format-17
+        clang-format-16
+    HINTS ${LEVI_CLANG_FORMAT_HINTS}
+)
+
+if(LEVI_CLANG_FORMAT_EXECUTABLE)
+    add_custom_target(clang-format
+        COMMAND "${LEVI_CLANG_FORMAT_EXECUTABLE}"
+            -i
+            --style=file
+            ${LEVI_CLANG_FORMAT_SOURCES}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMENT "Formatting Levi engine, editor, and tests"
+        COMMAND_EXPAND_LISTS
+        USES_TERMINAL
+        VERBATIM
+    )
+else()
+    add_custom_target(clang-format
+        COMMAND "${CMAKE_COMMAND}" -E echo
+            "clang-format was not found. Install LLVM clang-format and reconfigure the project."
+        COMMAND "${CMAKE_COMMAND}" -E false
+        COMMENT "clang-format is unavailable"
+        USES_TERMINAL
+        VERBATIM
+    )
 endif()

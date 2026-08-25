@@ -1,19 +1,12 @@
 #pragma once
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 
 namespace Levi {
 
-    enum class ScriptFieldType {
-        Float,
-        Int,
-        String,
-        Bool,
-        AssetPath,
-        Unknown
-    };
+    enum class ScriptFieldType { Float, Int, String, Bool, AssetPath, Unknown };
 
     struct ScriptField {
         std::string name;
@@ -44,9 +37,7 @@ namespace Levi {
             return instance;
         }
 
-        void registerSchema(const ScriptComponentSchema& schema) {
-            schemas_[schema.name] = schema;
-        }
+        void registerSchema(const ScriptComponentSchema& schema) { schemas_[schema.name] = schema; }
 
         const ScriptComponentSchema* getSchema(const std::string& name) const {
             auto it = schemas_.find(name);
@@ -54,17 +45,13 @@ namespace Levi {
             return nullptr;
         }
 
-        const std::unordered_map<std::string, ScriptComponentSchema>& getSchemas() const {
-            return schemas_;
-        }
+        const std::unordered_map<std::string, ScriptComponentSchema>& getSchemas() const { return schemas_; }
 
-        void clear() {
-            schemas_.clear();
-        }
+        void clear() { schemas_.clear(); }
 
     private:
         ScriptComponentRegistry() = default;
         std::unordered_map<std::string, ScriptComponentSchema> schemas_;
     };
 
-}
+} // namespace Levi

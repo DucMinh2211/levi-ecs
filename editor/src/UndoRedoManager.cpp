@@ -2,10 +2,7 @@
 
 namespace Levi {
 
-    LambdaCommand::LambdaCommand(
-        std::string name,
-        std::function<void()> undo,
-        std::function<void()> redo)
+    LambdaCommand::LambdaCommand(std::string name, std::function<void()> undo, std::function<void()> redo)
         : name_(std::move(name)), undo_(std::move(undo)), redo_(std::move(redo)) {}
 
     void LambdaCommand::undo() {
@@ -67,4 +64,4 @@ namespace Levi {
         undoStack_.push_back(std::move(command));
     }
 
-}
+} // namespace Levi

@@ -30,6 +30,30 @@ PivotType = {
 ---@field radius number
 ---@field offset Vector2
 
+---@enum RigidBodyType2D
+RigidBodyType2D = {
+    Static = 0,
+    Kinematic = 1,
+    Dynamic = 2
+}
+
+---@class RigidBody2D
+---@field type RigidBodyType2D
+---@field linearVelocity Vector2
+---@field angularVelocity number
+---@field gravityScale number
+---@field linearDamping number
+---@field angularDamping number
+---@field density number
+---@field friction number
+---@field restitution number
+---@field fixedRotation boolean
+---@field bullet boolean
+---@field enabled boolean
+---@field sensor boolean
+---@field categoryBits integer
+---@field maskBits integer
+
 ECS = {}
 
 ---@param name? string
@@ -103,6 +127,14 @@ function ECS.addAABBCollider(id, width, height) end
 ---@param id integer
 ---@param radius number
 function ECS.addCircleCollider(id, radius) end
+
+---@param id integer
+---@param bodyType? RigidBodyType2D
+function ECS.addRigidBody(id, bodyType) end
+
+---@param id integer
+---@return RigidBody2D?
+function ECS.getRigidBody(id) end
 
 ---@param id integer
 ---@param zoom? number
@@ -192,6 +224,50 @@ function Physics.overlapsAABB(ax, ay, aw, ah, bx, by, bw, bh) end
 ---@param br number
 ---@return boolean
 function Physics.overlapsCircle(ax, ay, ar, bx, by, br) end
+
+---@param x number Gravity X in pixels per second squared
+---@param y number Gravity Y in pixels per second squared
+function Physics.setGravity(x, y) end
+
+---@return Vector2
+function Physics.getGravity() end
+
+---@param id integer
+---@param x number Velocity X in pixels per second
+---@param y number Velocity Y in pixels per second
+---@return boolean
+function Physics.setLinearVelocity(id, x, y) end
+
+---@param id integer
+---@return Vector2
+function Physics.getLinearVelocity(id) end
+
+---@param id integer
+---@param x number Force X in newtons
+---@param y number Force Y in newtons
+---@return boolean
+function Physics.applyForce(id, x, y) end
+
+---@param id integer
+---@param x number Impulse X in newton-seconds
+---@param y number Impulse Y in newton-seconds
+---@return boolean
+function Physics.applyImpulse(id, x, y) end
+
+---@param first integer
+---@param second integer
+---@return boolean
+function Physics.isTouching(first, second) end
+
+---@param first integer
+---@param second integer
+---@return boolean
+function Physics.beganContact(first, second) end
+
+---@param first integer
+---@param second integer
+---@return boolean
+function Physics.endedContact(first, second) end
 
 Camera = {}
 

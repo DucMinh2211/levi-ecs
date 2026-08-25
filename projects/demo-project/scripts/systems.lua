@@ -17,7 +17,7 @@ end)
 
 -- BounceSystem: Moves entities up and down
 local time = 0
-ECS.registerSystem("BounceSystem", {"Position2D"}, function(e)
+ECS.registerSystem("BounceSystem", {"Position2D", "Bouncer"}, function(e)
     -- This is a global time, would be better to have a Time component
     -- but for demo purposes, we can use a local variable in the script scope
     time = time + 0.01 

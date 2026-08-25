@@ -1,14 +1,14 @@
 #include "Levi/LuaScriptManager.h"
-#include "Levi/Components.h"
-#include "Levi/Math.h"
-#include "Levi/SystemManager.h"
-#include "Levi/Input.h"
-#include "Levi/Physics2D.h"
 #include "Levi/Camera2D.h"
-#include <filesystem>
-#include <iostream>
-#include <fstream>
+#include "Levi/Components.h"
+#include "Levi/Input.h"
+#include "Levi/Math.h"
+#include "Levi/Physics2D.h"
+#include "Levi/SystemManager.h"
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <sstream>
 
 namespace {
@@ -28,7 +28,7 @@ namespace {
         if (!output) throw std::runtime_error("Failed while writing " + path.string());
     }
 
-}
+} // namespace
 
 namespace Levi {
 
@@ -67,7 +67,7 @@ namespace Levi {
 
             bindECS(world_);
             exportAPIDefinitions();
-            
+
             initialized_ = true;
             std::cout << "[LuaScriptManager] Lua VM initialized for project: " << projectPath << std::endl;
 
@@ -80,35 +80,38 @@ namespace Levi {
 
     void LuaScriptManager::bindECS(flecs::world* world) {
         if (!world) return;
-        
+
         // Register enums
-        lua_.new_enum("PivotType", 
-            "Percent", PivotType::Percent,
-            "Pixel", PivotType::Pixel
-        );
+        lua_.new_enum("PivotType", "Percent", PivotType::Percent, "Pixel", PivotType::Pixel);
+        lua_.new_enum("RigidBodyType2D", "Static", RigidBodyType2D::Static, "Kinematic", RigidBodyType2D::Kinematic,
+                      "Dynamic", RigidBodyType2D::Dynamic);
 
         // Register types for Lua
         lua_.new_usertype<Position2D>("Position2D", "x", &Position2D::x, "y", &Position2D::y);
         lua_.new_usertype<Scale2D>("Scale2D", "x", &Scale2D::x, "y", &Scale2D::y);
-        lua_.new_usertype<Rotation2D>("Rotation2D", 
-            "angle", &Rotation2D::angle,
-            "pivot", &Rotation2D::pivot,
-            "pivotType", &Rotation2D::pivotType
-        );
+        lua_.new_usertype<Rotation2D>("Rotation2D", "angle", &Rotation2D::angle, "pivot", &Rotation2D::pivot,
+                                      "pivotType", &Rotation2D::pivotType);
         lua_.new_usertype<Vector2>("Vector2", "x", &Vector2::x, "y", &Vector2::y);
         lua_.new_usertype<Sprite2D>("Sprite2D", "texturePath", &Sprite2D::texturePath, "size", &Sprite2D::size);
-        lua_.new_usertype<AABBCollider2D>("AABBCollider2D", "size", &AABBCollider2D::size, "offset", &AABBCollider2D::offset);
-        lua_.new_usertype<CircleCollider2D>("CircleCollider2D", "radius", &CircleCollider2D::radius, "offset", &CircleCollider2D::offset);
-        lua_.new_usertype<Camera2D>("Camera2D",
-            "zoom", &Camera2D::zoom,
-            "active", &Camera2D::active,
-            "maxShakeOffset", &Camera2D::maxShakeOffset,
-            "maxShakeRotation", &Camera2D::maxShakeRotation);
+        lua_.new_usertype<AABBCollider2D>("AABBCollider2D", "size", &AABBCollider2D::size, "offset",
+                                          &AABBCollider2D::offset);
+        lua_.new_usertype<CircleCollider2D>("CircleCollider2D", "radius", &CircleCollider2D::radius, "offset",
+                                            &CircleCollider2D::offset);
+        lua_.new_usertype<RigidBody2D>(
+            "RigidBody2D", "type", &RigidBody2D::type, "linearVelocity", &RigidBody2D::linearVelocity,
+            "angularVelocity", &RigidBody2D::angularVelocity, "gravityScale", &RigidBody2D::gravityScale,
+            "linearDamping", &RigidBody2D::linearDamping, "angularDamping", &RigidBody2D::angularDamping, "density",
+            &RigidBody2D::density, "friction", &RigidBody2D::friction, "restitution", &RigidBody2D::restitution,
+            "fixedRotation", &RigidBody2D::fixedRotation, "bullet", &RigidBody2D::bullet, "enabled",
+            &RigidBody2D::enabled, "sensor", &RigidBody2D::sensor, "categoryBits", &RigidBody2D::categoryBits,
+            "maskBits", &RigidBody2D::maskBits);
+        lua_.new_usertype<Camera2D>("Camera2D", "zoom", &Camera2D::zoom, "active", &Camera2D::active, "maxShakeOffset",
+                                    &Camera2D::maxShakeOffset, "maxShakeRotation", &Camera2D::maxShakeRotation);
 
         auto ecs = lua_.create_table();
 
         // --- CORE API ---
-        
+
         ecs["createEntity"] = [world](sol::optional<std::string> name) -> uint64_t {
             if (name && !name->empty()) return world->entity(name->c_str()).id();
             return world->entity().id();
@@ -122,12 +125,8 @@ namespace Levi {
         // --- Component Management ---
 
         // Position
-        ecs["addPosition"] = [world](uint64_t id, float x, float y) {
-            world->entity(id).set<Position2D>({x, y});
-        };
-        ecs["setPosition"] = [world](uint64_t id, float x, float y) {
-            world->entity(id).set<Position2D>({x, y});
-        };
+        ecs["addPosition"] = [world](uint64_t id, float x, float y) { world->entity(id).set<Position2D>({x, y}); };
+        ecs["setPosition"] = [world](uint64_t id, float x, float y) { world->entity(id).set<Position2D>({x, y}); };
         ecs["getPosition"] = [world](uint64_t id) -> sol::optional<Position2D> {
             auto e = world->entity(id);
             if (e.is_alive() && e.has<Position2D>()) return *e.get<Position2D>();
@@ -135,12 +134,8 @@ namespace Levi {
         };
 
         // Scale
-        ecs["addScale"] = [world](uint64_t id, float x, float y) {
-            world->entity(id).set<Scale2D>({x, y});
-        };
-        ecs["setScale"] = [world](uint64_t id, float x, float y) {
-            world->entity(id).set<Scale2D>({x, y});
-        };
+        ecs["addScale"] = [world](uint64_t id, float x, float y) { world->entity(id).set<Scale2D>({x, y}); };
+        ecs["setScale"] = [world](uint64_t id, float x, float y) { world->entity(id).set<Scale2D>({x, y}); };
         ecs["getScale"] = [world](uint64_t id) -> sol::optional<Scale2D> {
             auto e = world->entity(id);
             if (e.is_alive() && e.has<Scale2D>()) return *e.get<Scale2D>();
@@ -148,9 +143,7 @@ namespace Levi {
         };
 
         // Rotation
-        ecs["addRotation"] = [world](uint64_t id, float angle) {
-            world->entity(id).set<Rotation2D>({angle});
-        };
+        ecs["addRotation"] = [world](uint64_t id, float angle) { world->entity(id).set<Rotation2D>({angle}); };
         ecs["setRotation"] = [world](uint64_t id, float angle) {
             auto e = world->entity(id);
             if (e.is_alive()) {
@@ -195,6 +188,19 @@ namespace Levi {
             auto entity = world->entity(id);
             if (entity.is_alive()) entity.set<CircleCollider2D>({radius, {0.0f, 0.0f}});
         };
+        ecs["addRigidBody"] = [world](uint64_t id, sol::optional<RigidBodyType2D> type) {
+            auto entity = world->entity(id);
+            if (!entity.is_alive()) return;
+            if (!entity.has<Position2D>()) entity.set<Position2D>({0.0f, 0.0f});
+            RigidBody2D body;
+            body.type = type.value_or(RigidBodyType2D::Dynamic);
+            entity.set<RigidBody2D>(body);
+        };
+        ecs["getRigidBody"] = [world](uint64_t id) -> sol::optional<RigidBody2D> {
+            auto entity = world->entity(id);
+            if (entity.is_alive() && entity.has<RigidBody2D>()) return *entity.get<RigidBody2D>();
+            return sol::nullopt;
+        };
         ecs["addCamera"] = [world](uint64_t id, sol::optional<float> zoom) {
             auto entity = world->entity(id);
             if (!entity.is_alive()) return;
@@ -221,66 +227,76 @@ namespace Levi {
         ecs["defineComponent"] = [world](std::string name, sol::table defaultValues) {
             ScriptComponentSchema schema;
             schema.name = name;
-            
+
             for (auto& pair : defaultValues) {
                 std::string fieldName = pair.first.as<std::string>();
                 ScriptFieldType type = ScriptFieldType::Unknown;
-                
+
                 sol::object val = pair.second;
-                if (val.is<float>() || val.is<double>()) type = ScriptFieldType::Float;
-                else if (val.is<int>()) type = ScriptFieldType::Int;
-                else if (val.is<std::string>()) type = ScriptFieldType::String;
-                else if (val.is<bool>()) type = ScriptFieldType::Bool;
+                if (val.is<float>() || val.is<double>())
+                    type = ScriptFieldType::Float;
+                else if (val.is<int>())
+                    type = ScriptFieldType::Int;
+                else if (val.is<std::string>())
+                    type = ScriptFieldType::String;
+                else if (val.is<bool>())
+                    type = ScriptFieldType::Bool;
                 else if (val.is<sol::table>()) {
                     sol::table t = val.as<sol::table>();
                     if (t["__type"] == "AssetPath") {
                         type = ScriptFieldType::AssetPath;
                     }
                 }
-                
+
                 schema.fields.push_back({fieldName, type});
             }
-            
+
             ScriptComponentRegistry::getInstance().registerSchema(schema);
             world->entity(name.c_str()).add<ScriptComponentSchemaTag>();
-            std::cout << "[Lua] Defined Component: " << name << " with " << schema.fields.size() << " fields." << std::endl;
+            std::cout << "[Lua] Defined Component: " << name << " with " << schema.fields.size() << " fields."
+                      << std::endl;
         };
 
         ecs["addComponent"] = [world](uint64_t id, std::string schemaName) {
             auto e = world->entity(id);
             if (!e.is_alive()) return;
-            
+
             const auto* schema = ScriptComponentRegistry::getInstance().getSchema(schemaName);
             if (!schema) {
                 std::cerr << "[Lua] Error: Component schema not found: " << schemaName << std::endl;
                 return;
             }
-            
+
             ScriptComponent comp;
             comp.schemaName = schemaName;
 
             // Initialize default values from schema
             for (const auto& field : schema->fields) {
                 // For AssetPath, we might want to extract the default path if we stored it
-                // Currently defineComponent doesn't store default values in the schema, 
+                // Currently defineComponent doesn't store default values in the schema,
                 // but ScriptComponent initialization in setComponentValue or Inspector handles it.
             }
-            
+
             // Attach as a pair (ScriptComponent, schemaName) to allow multiple script components on one entity
             e.set<ScriptComponent>(world->entity(schemaName.c_str()), comp);
         };
 
-        ecs["setComponentValue"] = [world](uint64_t id, std::string schemaName, std::string fieldName, sol::object value) {
+        ecs["setComponentValue"] = [world](uint64_t id, std::string schemaName, std::string fieldName,
+                                           sol::object value) {
             auto e = world->entity(id);
             if (!e.is_alive()) return;
 
             auto* comp = e.get_mut<ScriptComponent>(world->entity(schemaName.c_str()));
             if (!comp) return;
 
-            if (value.is<float>() || value.is<double>()) comp->values[fieldName] = (float)value.as<float>();
-            else if (value.is<int>()) comp->values[fieldName] = value.as<int>();
-            else if (value.is<std::string>()) comp->values[fieldName] = value.as<std::string>();
-            else if (value.is<bool>()) comp->values[fieldName] = value.as<bool>();
+            if (value.is<float>() || value.is<double>())
+                comp->values[fieldName] = (float)value.as<float>();
+            else if (value.is<int>())
+                comp->values[fieldName] = value.as<int>();
+            else if (value.is<std::string>())
+                comp->values[fieldName] = value.as<std::string>();
+            else if (value.is<bool>())
+                comp->values[fieldName] = value.as<bool>();
             else if (value.is<sol::table>()) {
                 sol::table t = value.as<sol::table>();
                 if (t["__type"] == "AssetPath") {
@@ -289,7 +305,8 @@ namespace Levi {
             }
         };
 
-        ecs["getComponentValue"] = [world](uint64_t id, std::string schemaName, std::string fieldName, sol::this_state L) -> sol::object {
+        ecs["getComponentValue"] = [world](uint64_t id, std::string schemaName, std::string fieldName,
+                                           sol::this_state L) -> sol::object {
             auto e = world->entity(id);
             if (!e.is_alive()) return sol::nil;
 
@@ -299,9 +316,7 @@ namespace Levi {
             auto it = comp->values.find(fieldName);
             if (it == comp->values.end()) return sol::nil;
 
-            return std::visit([L](auto&& arg) -> sol::object {
-                return sol::make_object(L, arg);
-            }, it->second);
+            return std::visit([L](auto&& arg) -> sol::object { return sol::make_object(L, arg); }, it->second);
         };
 
         // --- System Management (ECS Abstraction Phase 2) ---
@@ -337,6 +352,27 @@ namespace Levi {
         };
         physics["overlapsAABB"] = &Physics2D::overlapsAABB;
         physics["overlapsCircle"] = &Physics2D::overlapsCircle;
+        physics["setGravity"] = [world](float x, float y) { Physics2D::setGravity(*world, x, y); };
+        physics["getGravity"] = [world]() { return Physics2D::getGravity(*world); };
+        physics["setLinearVelocity"] = [world](uint64_t id, float x, float y) {
+            return Physics2D::setLinearVelocity(*world, id, x, y);
+        };
+        physics["getLinearVelocity"] = [world](uint64_t id) { return Physics2D::getLinearVelocity(*world, id); };
+        physics["applyForce"] = [world](uint64_t id, float x, float y) {
+            return Physics2D::applyForce(*world, id, x, y);
+        };
+        physics["applyImpulse"] = [world](uint64_t id, float x, float y) {
+            return Physics2D::applyImpulse(*world, id, x, y);
+        };
+        physics["isTouching"] = [world](uint64_t first, uint64_t second) {
+            return Physics2D::isTouching(*world, first, second);
+        };
+        physics["beganContact"] = [world](uint64_t first, uint64_t second) {
+            return Physics2D::beganContact(*world, first, second);
+        };
+        physics["endedContact"] = [world](uint64_t first, uint64_t second) {
+            return Physics2D::endedContact(*world, first, second);
+        };
         lua_["Physics"] = physics;
 
         auto cameraApi = lua_.create_table();
@@ -407,7 +443,7 @@ namespace Levi {
             s->env = sol::environment();
         }
         scripts_.clear();
-        
+
         lua_["ECS"] = sol::nil;
         lua_["Input"] = sol::nil;
         lua_["Physics"] = sol::nil;
@@ -418,8 +454,9 @@ namespace Levi {
         // 3. Ép kiểu hủy máy ảo Lua
         try {
             lua_.collect_garbage();
-            lua_ = sol::state(); 
-        } catch(...) {}
+            lua_ = sol::state();
+        } catch (...) {
+        }
 
         world_ = nullptr;
         ScriptComponentRegistry::getInstance().clear();
@@ -432,22 +469,30 @@ namespace Levi {
 
     bool LuaScriptManager::loadScript(const std::string& scriptPath) {
         ScriptInfo* info = nullptr;
-        for (auto& sPtr : scripts_) { if (sPtr->path == scriptPath) { info = sPtr.get(); break; } }
+        for (auto& sPtr : scripts_) {
+            if (sPtr->path == scriptPath) {
+                info = sPtr.get();
+                break;
+            }
+        }
         if (!info) return false;
 
         // Tạo môi trường mới để đảm bảo tính cô lập
         info->env = sol::environment(lua_, sol::create, lua_.globals());
-        
+
         // Thêm tính năng tự động theo dõi entity vào ECS.createEntity của riêng script này
         sol::table scriptEcs = lua_.create_table();
         sol::table globalEcs = lua_["ECS"];
-        for (auto& pair : globalEcs) { scriptEcs[pair.first] = pair.second; }
-        
+        for (auto& pair : globalEcs) {
+            scriptEcs[pair.first] = pair.second;
+        }
+
         scriptEcs["createEntity"] = [this, info](sol::optional<std::string> name) -> uint64_t {
             if (!this->world_) return 0;
             auto e = name && !name->empty() ? this->world_->entity(name->c_str()) : this->world_->entity();
             uint64_t id = e.id();
-            if (std::find(info->createdEntities.begin(), info->createdEntities.end(), id) == info->createdEntities.end()) {
+            if (std::find(info->createdEntities.begin(), info->createdEntities.end(), id) ==
+                info->createdEntities.end()) {
                 info->createdEntities.push_back(id);
             }
             return id;
@@ -471,7 +516,12 @@ namespace Levi {
 
     bool LuaScriptManager::reloadScript(const std::string& scriptPath) {
         ScriptInfo* info = nullptr;
-        for (auto& sPtr : scripts_) { if (sPtr->path == scriptPath) { info = sPtr.get(); break; } }
+        for (auto& sPtr : scripts_) {
+            if (sPtr->path == scriptPath) {
+                info = sPtr.get();
+                break;
+            }
+        }
         if (!info) return false;
 
         std::cout << "[LuaScriptManager] Reloading: " << scriptPath << std::endl;
@@ -608,6 +658,7 @@ namespace Levi {
         "Camera",
         "Scene",
         "PivotType",
+        "RigidBodyType2D",
         "entities"
     ],
     "workspace.library": [
@@ -633,6 +684,7 @@ namespace Levi {
         "Camera",
         "Scene",
         "PivotType",
+        "RigidBodyType2D",
         "entities"
     ],
     "workspace.library": [
@@ -676,6 +728,30 @@ PivotType = {
 ---@class CircleCollider2D
 ---@field radius number
 ---@field offset Vector2
+
+---@enum RigidBodyType2D
+RigidBodyType2D = {
+    Static = 0,
+    Kinematic = 1,
+    Dynamic = 2
+}
+
+---@class RigidBody2D
+---@field type RigidBodyType2D
+---@field linearVelocity Vector2
+---@field angularVelocity number
+---@field gravityScale number
+---@field linearDamping number
+---@field angularDamping number
+---@field density number
+---@field friction number
+---@field restitution number
+---@field fixedRotation boolean
+---@field bullet boolean
+---@field enabled boolean
+---@field sensor boolean
+---@field categoryBits integer
+---@field maskBits integer
 
 ECS = {}
 
@@ -750,6 +826,14 @@ function ECS.addAABBCollider(id, width, height) end
 ---@param id integer
 ---@param radius number
 function ECS.addCircleCollider(id, radius) end
+
+---@param id integer
+---@param bodyType? RigidBodyType2D
+function ECS.addRigidBody(id, bodyType) end
+
+---@param id integer
+---@return RigidBody2D?
+function ECS.getRigidBody(id) end
 
 ---@param id integer
 ---@param zoom? number
@@ -840,6 +924,50 @@ function Physics.overlapsAABB(ax, ay, aw, ah, bx, by, bw, bh) end
 ---@return boolean
 function Physics.overlapsCircle(ax, ay, ar, bx, by, br) end
 
+---@param x number Gravity X in pixels per second squared
+---@param y number Gravity Y in pixels per second squared
+function Physics.setGravity(x, y) end
+
+---@return Vector2
+function Physics.getGravity() end
+
+---@param id integer
+---@param x number Velocity X in pixels per second
+---@param y number Velocity Y in pixels per second
+---@return boolean
+function Physics.setLinearVelocity(id, x, y) end
+
+---@param id integer
+---@return Vector2
+function Physics.getLinearVelocity(id) end
+
+---@param id integer
+---@param x number Force X in newtons
+---@param y number Force Y in newtons
+---@return boolean
+function Physics.applyForce(id, x, y) end
+
+---@param id integer
+---@param x number Impulse X in newton-seconds
+---@param y number Impulse Y in newton-seconds
+---@return boolean
+function Physics.applyImpulse(id, x, y) end
+
+---@param first integer
+---@param second integer
+---@return boolean
+function Physics.isTouching(first, second) end
+
+---@param first integer
+---@param second integer
+---@return boolean
+function Physics.beganContact(first, second) end
+
+---@param first integer
+---@param second integer
+---@return boolean
+function Physics.endedContact(first, second) end
+
 Camera = {}
 
 ---@return integer?
@@ -899,11 +1027,10 @@ function Scene.current() end
             writeTextFileIfChanged(projectRoot / ".luarc.json", projectConfig);
             writeTextFileIfChanged(scriptsRoot / ".luarc.json", scriptsConfig);
             writeTextFileIfChanged(scriptsRoot / "levi-api" / "ecs.lua", apiDefinitions);
-            std::cout << "[LuaScriptManager] LuaLS workspace files are ready in: "
-                      << scriptsRoot << std::endl;
+            std::cout << "[LuaScriptManager] LuaLS workspace files are ready in: " << scriptsRoot << std::endl;
         } catch (const std::exception& e) {
             lastError_ = e.what();
             std::cerr << "[LuaScriptManager] LSP export warning: " << e.what() << std::endl;
         }
     }
-}
+} // namespace Levi

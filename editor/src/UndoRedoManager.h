@@ -57,4 +57,4 @@ namespace Levi {
         std::vector<std::unique_ptr<EditorCommand>> redoStack_;
     };
 
-}
+} // namespace Levi

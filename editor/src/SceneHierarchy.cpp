@@ -20,8 +20,8 @@ namespace Levi {
 
             // Script schemas use Flecs entities as pair targets. They are ECS
             // metadata, not scene objects, so keep them out of the hierarchy.
-            return !entity.has<ScriptComponentSchemaTag>()
-                && ScriptComponentRegistry::getInstance().getSchema(name) == nullptr;
+            return !entity.has<ScriptComponentSchemaTag>() &&
+                   ScriptComponentRegistry::getInstance().getSchema(name) == nullptr;
         }
 
         std::unique_ptr<EditorCommand> makeCreateEntityCommand(flecs::world world, flecs::entity parent = {}) {
@@ -34,8 +34,7 @@ namespace Levi {
                 flecs::entity_t entityId = 0;
             };
 
-            auto state = std::make_shared<CreatedEntityState>(
-                std::move(world), parent ? parent.id() : 0);
+            auto state = std::make_shared<CreatedEntityState>(std::move(world), parent ? parent.id() : 0);
 
             return std::make_unique<LambdaCommand>(
                 parent ? "Create Child" : "Create Entity",
@@ -55,16 +54,14 @@ namespace Levi {
                     state->entityId = entity.id();
                 });
         }
-    }
+    } // namespace
 
     void SceneHierarchy::render(flecs::world& world, UndoRedoManager& history) {
         history_ = &history;
         ImGui::Begin("Scene Hierarchy");
 
         // Query tìm các entity gốc
-        auto q = world.query_builder()
-            .without(flecs::ChildOf, flecs::Wildcard)
-            .build();
+        auto q = world.query_builder().without(flecs::ChildOf, flecs::Wildcard).build();
 
         q.each([this](flecs::entity e) {
             if (isVisibleSceneEntity(e)) drawEntityNode(e);
@@ -90,7 +87,8 @@ namespace Levi {
         // Get entity name or ID
         std::string label = e.name().length() > 0 ? e.name().c_str() : "Entity " + std::to_string(e.id());
 
-        ImGuiTreeNodeFlags flags = ((selectedEntity_ == e) ? ImGuiTreeNodeFlags_Selected : 0) | ImGuiTreeNodeFlags_OpenOnArrow;
+        ImGuiTreeNodeFlags flags =
+            ((selectedEntity_ == e) ? ImGuiTreeNodeFlags_Selected : 0) | ImGuiTreeNodeFlags_OpenOnArrow;
         flags |= ImGuiTreeNodeFlags_SpanAvailWidth;
 
         // Check if entity has children to decide if it should be a leaf
@@ -130,4 +128,4 @@ namespace Levi {
         }
     }
 
-}
+} // namespace Levi

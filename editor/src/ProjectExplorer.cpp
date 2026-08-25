@@ -1,9 +1,9 @@
 #include "ProjectExplorer.h"
+#include <SDL3/SDL.h>
 #include <filesystem>
 #include <imgui.h>
 #include <iostream>
 #include <nfd.hpp>
-#include <SDL3/SDL.h>
 
 namespace Levi {
 
@@ -12,7 +12,7 @@ namespace Levi {
             const std::string filename = path.filename().string();
             return filename.ends_with(".levscene.json") || filename.ends_with(".levscene.bin");
         }
-    }
+    } // namespace
 
     ProjectExplorer::ProjectExplorer() {
         // Khởi tạo NFD (Quan trọng để chạy được trên các OS)
@@ -53,15 +53,15 @@ namespace Levi {
         // Display current path
         char pathBuf[512];
         strncpy(pathBuf, projectPath_.c_str(), sizeof(pathBuf));
-        
+
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 40.0f);
         if (ImGui::InputText("##ProjectRoot", pathBuf, sizeof(pathBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
             setProjectPath(pathBuf);
         }
-        
+
         ImGui::SameLine();
         if (ImGui::Button("...")) {
-            nfdchar_t *outPath = NULL;
+            nfdchar_t* outPath = NULL;
             nfdresult_t result = NFD_PickFolder(&outPath, NULL);
 
             if (result == NFD_OKAY) {
@@ -101,14 +101,16 @@ namespace Levi {
             for (const auto& entry : std::filesystem::directory_iterator(directory)) {
                 if (!entry.is_regular_file()) continue;
                 const auto extension = entry.path().extension().string();
-                const bool isImage = extension == ".png" || extension == ".jpg" || extension == ".jpeg"
-                    || extension == ".bmp" || extension == ".gif";
+                const bool isImage = extension == ".png" || extension == ".jpg" || extension == ".jpeg" ||
+                                     extension == ".bmp" || extension == ".gif";
                 const std::string relative = std::filesystem::relative(entry.path(), projectPath_).generic_string();
                 ImGui::PushID(relative.c_str());
                 if (isImage) {
                     SDL_Texture* texture = assets.loadTexture(relative);
-                    if (texture) ImGui::Image(reinterpret_cast<ImTextureID>(texture), ImVec2(64, 64));
-                    else ImGui::Button("Image", ImVec2(64, 64));
+                    if (texture)
+                        ImGui::Image(reinterpret_cast<ImTextureID>(texture), ImVec2(64, 64));
+                    else
+                        ImGui::Button("Image", ImVec2(64, 64));
                 } else {
                     ImGui::Button("File", ImVec2(64, 64));
                 }
@@ -122,7 +124,8 @@ namespace Levi {
                 ImGui::NextColumn();
                 ImGui::PopID();
             }
-        } catch (const std::exception&) {}
+        } catch (const std::exception&) {
+        }
         ImGui::Columns(1);
         ImGui::EndChild();
     }
@@ -141,7 +144,7 @@ namespace Levi {
                 if (!isDirectory) flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
                 bool nodeOpen = ImGui::TreeNodeEx(filename.c_str(), flags);
-                
+
                 // --- Xử lý Click & Double Click ---
                 if (ImGui::IsItemClicked()) {
                     selectedPath_ = path;
@@ -179,7 +182,8 @@ namespace Levi {
                     ImGui::TreePop();
                 }
             }
-        } catch (const std::exception& e) {}
+        } catch (const std::exception& e) {
+        }
     }
 
     void ProjectExplorer::activateFile(const std::filesystem::path& path, const FileOpenHandler& onOpenFile) {
@@ -199,4 +203,4 @@ namespace Levi {
 #endif
     }
 
-}
+} // namespace Levi

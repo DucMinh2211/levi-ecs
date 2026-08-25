@@ -1,12 +1,12 @@
 #pragma once
 
-#include <string>
+#include "AssetManager.h"
+#include "Components.h"
+#include "LuaScriptManager.h"
 #include <filesystem>
 #include <flecs.h>
 #include <functional>
-#include "Components.h"
-#include "AssetManager.h"
-#include "LuaScriptManager.h"
+#include <string>
 
 // Forward declarations to avoid including SDL3 in headers (reduces build time)
 struct SDL_Window;
@@ -59,7 +59,7 @@ namespace Levi {
         void clearFirstFrame() { firstFrame_ = false; }
 
     private:
-        void setupSystems(); // Initializes ECS Systems
+        void setupSystems();      // Initializes ECS Systems
         void executeLuaSystems(); // Executes Lua-defined systems
         void processPendingSceneLoad();
         void createViewportTexture(int width, int height);
@@ -74,11 +74,11 @@ namespace Levi {
         SDL_Window* window_;
         SDL_Renderer* renderer_;
         SDL_Texture* viewportTexture_; // "Virtual screen" for Render to Texture
-        
+
         // Members are destroyed in reverse order of declaration.
         // We want world_ to be destroyed LAST.
         flecs::world world_;
         AssetManager assetManager_;
         LuaScriptManager luaScriptManager_;
     };
-}
+} // namespace Levi

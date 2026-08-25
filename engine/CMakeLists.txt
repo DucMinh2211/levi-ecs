@@ -28,6 +28,7 @@ target_link_libraries(LeviEngine PUBLIC
     SDL3::SDL3-static 
     SDL3_image::SDL3_image-static 
     flecs_static 
+    box2d
     imgui
     liblua
     sol2

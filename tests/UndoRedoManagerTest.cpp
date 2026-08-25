@@ -9,9 +9,7 @@ int main() {
     auto setValue = [&history, &value](int next) {
         const int previous = value;
         history.execute(std::make_unique<Levi::LambdaCommand>(
-            "Set Value",
-            [&value, previous]() { value = previous; },
-            [&value, next]() { value = next; }));
+            "Set Value", [&value, previous]() { value = previous; }, [&value, next]() { value = next; }));
     };
 
     setValue(1);

@@ -33,6 +33,7 @@ namespace Levi {
             std::optional<Sprite2D> sprite;
             std::optional<AABBCollider2D> aabb;
             std::optional<CircleCollider2D> circle;
+            std::optional<RigidBody2D> rigidBody;
             std::optional<Camera2D> camera;
             std::vector<std::pair<flecs::entity_t, ScriptComponent>> scriptComponents;
         };
@@ -45,4 +46,4 @@ namespace Levi {
         std::vector<EntitySnapshot> snapshots_;
     };
 
-}
+} // namespace Levi
